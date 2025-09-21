@@ -257,6 +257,6 @@ sudo systemctl restart your_bot.service
 
 Если вам понравился бот, вы можете отправить донат на :
 
-## BTC: bc1qa3c5xdc6a3n2l3w0sq3vysustczpmlvhdwr8vc
+#### BTC: bc1qa3c5xdc6a3n2l3w0sq3vysustczpmlvhdwr8vc
 
 Спасибо за вашу поддержку! 🙏
