@@ -24,7 +24,10 @@ APP_PORT = int(os.environ.get("PORT", 8080))
 
 async def on_startup(bot: Bot):
     await initialize_db()
-    await bot.set_webhook(TELEGRAM_WEBHOOK_URL)
+    await bot.set_webhook(
+    TELEGRAM_WEBHOOK_URL,
+    allowed_updates=["message", "callback_query", "pre_checkout_query"]
+)
     logging.info(f"Webhook set to {TELEGRAM_WEBHOOK_URL}")
 
 
