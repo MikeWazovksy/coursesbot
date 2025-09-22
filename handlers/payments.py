@@ -1,7 +1,6 @@
 # handlers/payments.py
 
 import logging
-import asyncio
 from aiohttp import web
 from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -18,42 +17,31 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
 
         notification = WebhookNotification(data)
         payment = notification.object
-        payment_id = int(payment.metadata.get("наш_внутренний_id"))
 
-        if not payment_id:
-            logging.error("В метаданных ЮKassa не найден наш внутренний ID платежа.")
+        # --- ШАГ 1: ИЗВЛЕКАЕМ ВСЕ ДАННЫЕ ИЗ METADATA ---
+        metadata = payment.metadata
+        payment_id = int(metadata.get("payment_id"))
+        user_id = int(metadata.get("user_id"))
+        course_id = int(metadata.get("course_id"))
+        message_id = int(metadata.get("message_id"))
+
+        if not all([payment_id, user_id, course_id, message_id]):
+            logging.error(f"Недостаточно метаданных в вебхуке от ЮKassa: {metadata}")
             return web.Response(status=200)
 
+        # --- ШАГ 2: ПРОВЕРЯЕМ СТАТУС В НАШЕЙ БД (чтобы избежать повторной обработки) ---
         payment_info = await payments_db.get_payment_info(payment_id)
-
-        if payment_info and not payment_info['message_id']:
-            logging.warning(f"Message_id для платежа {payment_id} еще не записан. Ждем 2 секунды и пробуем снова.")
-            await asyncio.sleep(2)
-            payment_info = await payments_db.get_payment_info(payment_id)
-
-        if not payment_info:
-            logging.error(f"Платёж с ID {payment_id} не найден в нашей базе данных после ожидания.")
-            return web.Response(status=200)
-
-        if payment_info['status'] != 'pending':
+        if payment_info and payment_info['status'] != 'pending':
             logging.info(f"Повторный вебхук для уже обработанного платежа {payment_id}. Игнорируем.")
             return web.Response(status=200)
 
-        user_id = payment_info['user_id']
-        course_id = payment_info['course_id']
-        message_id = payment_info['message_id']
-
-        if not all([user_id, course_id, message_id]):
-            logging.error(f"Недостаточно данных для платежа ID {payment_id}. user_id: {user_id}, course_id: {course_id}, message_id: {message_id}")
-            return web.Response(status=200)
-
+        # --- ШАГ 3: ОСНОВНАЯ ЛОГИКА ---
         if notification.event == "payment.succeeded":
             await payments_db.update_payment_status(payment_id, "succeeded")
             await user_courses_db.add_user_course(user_id, course_id)
 
             await bot.edit_message_text(
-                chat_id=user_id,
-                message_id=message_id,
+                chat_id=user_id, message_id=message_id,
                 text="✅ Оплата прошла успешно! Вам открыт доступ к курсу."
             )
             logging.info(f"Payment {payment_id} succeeded for user {user_id}.")
@@ -65,8 +53,7 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
             builder.button(text="Попробовать снова", callback_data=CourseCallbackFactory(action="buy", course_id=course_id))
 
             await bot.edit_message_text(
-                chat_id=user_id,
-                message_id=message_id,
+                chat_id=user_id, message_id=message_id,
                 text="❌ Время оплаты истекло или платёж был отменен. Ссылка больше недействительна.",
                 reply_markup=builder.as_markup()
             )
