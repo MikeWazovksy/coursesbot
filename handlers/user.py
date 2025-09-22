@@ -69,7 +69,7 @@ async def show_course_details(
 async def buy_course_handler(
     callback: CallbackQuery,
     callback_data: CourseCallbackFactory,
-    bot: Bot  # <-- ДОБАВЛЯЕМ ЭТОТ АРГУМЕНТ
+    bot: Bot
 ):
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(course_id)
@@ -81,21 +81,18 @@ async def buy_course_handler(
     _, title, _, _, price, _ = course
     user_id = callback.from_user.id
 
-    # 1. Сначала создаем запись в БД, чтобы получить payment_id
     payment_id = await payments_db.create_pending_payment(user_id, course_id, price)
     if not payment_id:
         await callback.message.answer("Произошла ошибка при создании платежа.")
         await callback.answer()
         return
 
-    # 2. Редактируем сообщение на "Генерирую ссылку...", чтобы получить message_id
     temp_message = await callback.message.edit_text("Минутку, генерирую ссылку на оплату...")
     message_id = temp_message.message_id
 
-    # 3. Теперь, когда у нас есть message_id, сохраняем его в БД
     await payments_db.update_payment_message_id(payment_id, message_id)
 
-    # 4. Собираем ВСЕ нужные данные в metadata
+    # УБЕДИТЕСЬ, ЧТО METADATA СОБИРАЕТСЯ ИМЕННО ТАК
     metadata = {
         "payment_id": payment_id,
         "user_id": user_id,
@@ -103,16 +100,13 @@ async def buy_course_handler(
         "message_id": message_id
     }
 
-    # 5. Создаем платеж в ЮKassa с полными метаданными
     payment_url, yookassa_payment_id = await payment_service.create_payment(
         amount=price, description=f"Покупка курса: {title}", metadata=metadata
     )
 
-    # 6. Обновляем сообщение, вставляя в него кнопку с готовой ссылкой
     builder = InlineKeyboardBuilder()
     builder.button(text="➡️ Оплатить", url=payment_url)
 
-    # Теперь `bot` здесь определён, и эта строка сработает
     await bot.edit_message_text(
         chat_id=user_id,
         message_id=message_id,

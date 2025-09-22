@@ -1,6 +1,6 @@
-# handlers/payments.py
 
 import logging
+import asyncio
 from aiohttp import web
 from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -17,25 +17,30 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
 
         notification = WebhookNotification(data)
         payment = notification.object
-
-        # --- ШАГ 1: ИЗВЛЕКАЕМ ВСЕ ДАННЫЕ ИЗ METADATA ---
         metadata = payment.metadata
-        payment_id = int(metadata.get("payment_id"))
-        user_id = int(metadata.get("user_id"))
-        course_id = int(metadata.get("course_id"))
-        message_id = int(metadata.get("message_id"))
 
-        if not all([payment_id, user_id, course_id, message_id]):
+        payment_id_raw = metadata.get("payment_id")
+        user_id_raw = metadata.get("user_id")
+        course_id_raw = metadata.get("course_id")
+        message_id_raw = metadata.get("message_id")
+
+        if not all([payment_id_raw, user_id_raw, course_id_raw, message_id_raw]):
             logging.error(f"Недостаточно метаданных в вебхуке от ЮKassa: {metadata}")
+            old_payment_id = metadata.get("наш_внутренний_id")
+            if old_payment_id:
+                 logging.warning(f"Получен вебхук со старым форматом метаданных для платежа {old_payment_id}.")
             return web.Response(status=200)
 
-        # --- ШАГ 2: ПРОВЕРЯЕМ СТАТУС В НАШЕЙ БД (чтобы избежать повторной обработки) ---
+        payment_id = int(payment_id_raw)
+        user_id = int(user_id_raw)
+        course_id = int(course_id_raw)
+        message_id = int(message_id_raw)
+
         payment_info = await payments_db.get_payment_info(payment_id)
         if payment_info and payment_info['status'] != 'pending':
             logging.info(f"Повторный вебхук для уже обработанного платежа {payment_id}. Игнорируем.")
             return web.Response(status=200)
 
-        # --- ШАГ 3: ОСНОВНАЯ ЛОГИКА ---
         if notification.event == "payment.succeeded":
             await payments_db.update_payment_status(payment_id, "succeeded")
             await user_courses_db.add_user_course(user_id, course_id)
