@@ -195,24 +195,26 @@ async def start_edit_course(
 
 # Обробатываем поля редактирования
 @admin_router.callback_query(EditCourseCallback.filter(), EditCourse.choosing_field)
-async def choose_field_to_edit(
-    callback: CallbackQuery, callback_data: EditCourseCallback, state: FSMContext
-):
+async def choose_field_to_edit(callback: CallbackQuery, callback_data: EditCourseCallback, state: FSMContext):
+    await callback.answer()
+
     field = callback_data.field
     field_names = {
-        "title": "новое название",
-        "short_description": "новое краткое описание",
-        "full_description": "новое полное описание",
-        "materials_link": "новую ссылку на материалы",
-        "price": "новую цену",
+        'title': 'новое название',
+        'short_description': 'новое краткое описание',
+        'full_description': 'новое полное описание',
+        'materials_link': 'новую ссылку на материалы',
+        'price': 'новую цену'
     }
 
     await state.update_data(field_to_edit=field)
     await state.set_state(EditCourse.entering_new_value)
 
-    await callback.message.edit_text(
+    await callback.message.delete()
+
+    await callback.message.answer(
         f"Введите {field_names.get(field, 'новое значение')}:",
-        reply_markup=cancel_kb,
+        reply_markup=cancel_kb
     )
     await callback.message.answer("...", reply_markup=cancel_kb)
     await callback.answer()
