@@ -1,4 +1,3 @@
-# models/courses.py
 import aiosqlite
 from config import DB_NAME
 from typing import List, Tuple, Optional
@@ -18,7 +17,6 @@ async def get_course_by_id(course_id: int) -> Optional[Tuple]:
 
 async def add_course(title: str, short_desc: str, full_desc: str, link: str, price: float):
     async with aiosqlite.connect(DB_NAME) as db:
-        # ИСПРАВЛЕННЫЙ КОД
         await db.execute(
             """INSERT INTO courses (title, short_description, full_description, materials_link, price)
             VALUES (?, ?, ?, ?, ?)""",

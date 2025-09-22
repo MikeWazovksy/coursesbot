@@ -1,4 +1,3 @@
-# handlers/user.py
 from aiogram import Router, F
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
@@ -43,11 +42,11 @@ async def handle_catalog(message: Message):
         await message.answer("К сожалению, сейчас нет доступных курсов.")
         return
     await message.answer(
-        "Вот наши доступные курсы:", reply_markup=get_courses_list_kb(courses)
+        "Доступные курсы:", reply_markup=get_courses_list_kb(courses)
     )
 
 
-# Этот хендлер без изменений
+# Цена курса
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "view"))
 async def show_course_details(
     callback: CallbackQuery, callback_data: CourseCallbackFactory
@@ -96,12 +95,15 @@ async def buy_course_handler(
     builder = InlineKeyboardBuilder()
     builder.button(text="➡️ Оплатить", url=payment_url)
 
-    await callback.message.edit_text(
+    sent_message = await callback.message.edit_text(
         f"Вы собираетесь купить курс «**{title}**» за **{price}** руб.\n\n"
-        "Нажмите на кнопку ниже, чтобы перейти к оплате.",
+        "Нажмите на кнопку ниже, чтобы перейти к оплате. Ссылка действительна 10 минут.",
         reply_markup=builder.as_markup(),
         parse_mode="Markdown",
     )
+
+    await payments_db.update_payment_message_id(payment_id, sent_message.message_id)
+
     await callback.answer()
 
 
@@ -110,7 +112,7 @@ async def buy_course_handler(
 async def back_to_courses_list(callback: CallbackQuery):
     courses = await courses_db.get_all_courses()
     await callback.message.edit_text(
-        "Вот наши доступные курсы:", reply_markup=get_courses_list_kb(courses)
+        "Доступные курсы:", reply_markup=get_courses_list_kb(courses)
     )
     await callback.answer()
 
@@ -127,7 +129,7 @@ async def handle_my_courses(message: Message):
 
     response_text = "📚 **Ваши курсы:**\n\n"
     for course in my_courses:
-        response_text += f"🎓 **{course['title']}**\n🔗 Ссылка на материалы: {course['materials_link']}\n\n"
+        response_text += f"🎓 **{course['title']}**\n🔗 Ссылка на материалы курса: {course['materials_link']}\n\n"
 
     await message.answer(
         response_text, parse_mode="Markdown", disable_web_page_preview=True

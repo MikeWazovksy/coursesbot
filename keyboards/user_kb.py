@@ -1,9 +1,6 @@
-# keyboards/user_kb.py
 from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData

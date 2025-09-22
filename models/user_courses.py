@@ -1,5 +1,3 @@
-# models/user_courses.py
-
 import aiosqlite
 from config import DB_NAME
 from typing import List, Dict

@@ -1,4 +1,3 @@
-# database.py
 import aiosqlite
 import logging
 from config import DB_NAME

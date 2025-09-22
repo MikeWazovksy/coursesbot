@@ -1,11 +1,10 @@
-# middlewares/throttling.py
-
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery
 from cachetools import TTLCache
 
 class ThrottlingMiddleware(BaseMiddleware):
+    # защита о спама , нажатия на кнопки
     def __init__(self, time_limit: int = 1):
         self.cache = TTLCache(maxsize=10_000, ttl=time_limit)
 

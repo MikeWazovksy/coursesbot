@@ -1,5 +1,3 @@
--- migrations/001_init.sql
-
 -- Таблица пользователей
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
@@ -39,6 +37,19 @@ CREATE TABLE IF NOT EXISTS user_courses (
     FOREIGN KEY (user_id) REFERENCES users (user_id),
     FOREIGN KEY (course_id) REFERENCES courses (id),
     UNIQUE(user_id, course_id)
+);
+
+-- Таблица платежей
+CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    course_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    status TEXT NOT NULL,
+    message_id INTEGER, -- <-- ДОБАВЬТЕ ЭТУ СТРОКУ
+    payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (course_id) REFERENCES courses(id)
 );
 
 -- Удаляем удаление курсов

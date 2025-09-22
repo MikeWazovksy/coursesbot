@@ -1,4 +1,3 @@
-# models/stats.py
 import aiosqlite
 from config import DB_NAME
 from typing import Dict

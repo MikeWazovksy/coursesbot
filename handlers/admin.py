@@ -1,5 +1,3 @@
-# handlers/admin.py
-
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
@@ -39,7 +37,6 @@ async def admin_panel(message: Message):
 # Обработка отмены
 @admin_router.message(F.text == "❌ Отмена")
 async def cancel_action(message: Message, state: FSMContext):
-    """Отменяет любое текущее действие и возвращает в главное меню."""
     current_state = await state.get_state()
     if current_state is None:
         return
@@ -69,7 +66,7 @@ async def process_short_description(message: Message, state: FSMContext):
     await state.update_data(short_description=message.text)
     await state.set_state(AddCourse.full_description)
     await message.answer(
-        "Теперь введите полное описание (можно пропустить, отправив '-')"
+        "Отлично! Теперь введите полное описание (можно пропустить, отправив '-')"
     )
 
 
@@ -79,7 +76,7 @@ async def process_full_description(message: Message, state: FSMContext):
     full_desc = message.text if message.text != "-" else ""
     await state.update_data(full_description=full_desc)
     await state.set_state(AddCourse.materials_link)
-    await message.answer("Принято! Теперь отправьте ссылку на материалы:")
+    await message.answer("Отлично! Теперь отправьте ссылку на материалы:")
 
 
 # Получаем цену
@@ -207,6 +204,7 @@ async def back_to_course_list_admin(callback: CallbackQuery):
     await callback.answer()
 
 
+# Возвращаемся в главное меню
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "back_to_main_menu"))
 async def back_to_main_menu_admin(callback: CallbackQuery):
 
@@ -366,7 +364,6 @@ async def format_users_list(users: List[Dict]) -> str:
 # Список пользователей
 @admin_router.message(F.text == "👥 Список юзеров", IsAdmin())
 async def list_users(message: Message):
-    """Отображает первую страницу списка пользователей."""
     total_users = await users_db.get_total_users_count()
     users = await users_db.get_paginated_users(limit=USERS_PER_PAGE, offset=0)
 
@@ -380,12 +377,11 @@ async def list_users(message: Message):
         parse_mode="HTML",
     )
 
-
+# Обработка нажатия кнопок
 @admin_router.callback_query(UserPaginationCallback.filter())
 async def paginate_users_list(
     callback: CallbackQuery, callback_data: UserPaginationCallback
 ):
-    """Обрабатывает нажатия кнопок пагинации."""
     current_offset = callback_data.offset
 
     if callback_data.action == "next":
