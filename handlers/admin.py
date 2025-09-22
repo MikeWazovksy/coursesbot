@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
-from filters.admin import IsAdmin
+from ..filters.admin import IsAdmin
 from keyboards.admin_kb import (
     admin_main_kb,
     cancel_kb,
