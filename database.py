@@ -2,6 +2,7 @@ import aiosqlite
 import logging
 from config import DB_NAME
 
+# установка базы данных
 async def initialize_db():
     try:
         async with aiosqlite.connect(DB_NAME) as db:
