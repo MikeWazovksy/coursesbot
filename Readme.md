@@ -39,7 +39,7 @@
 ## 📁 Структура проекта
 
 ```
-project/
+coursesbot/
 │── bot.py
 │── config.py
 │── database.py
