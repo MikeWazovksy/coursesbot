@@ -121,8 +121,7 @@ pip install -r requirements.txt
 ```ini
 BOT_TOKEN="..."
 ADMIN_IDS="..."
-YOOKASSA_SHOP_ID="..."
-YOOKASSA_SECRET_KEY="..."
+PAYMENT_PROVIDER_TOKEN="..."
 WEBHOOK_HOST="https://your-domain.com"
 ```
 
@@ -135,8 +134,7 @@ ngrok http 8080
 ```
 
 2. Скопируйте HTTPS URL и вставьте в `WEBHOOK_HOST`.
-3. В личном кабинете ЮKassa укажите URL вебхука: `https://<ngrok-url>/webhook/yookassa`
-4. Запустите бота:
+3. Запустите бота:
 
 ```bash
 python bot.py
@@ -147,7 +145,6 @@ python bot.py
 1. Загрузите код на GitHub.
 2. Создайте Web Service, подключив репозиторий.
 3. Добавьте переменные окружения.
-4. Укажите URL вебхуков ЮKassa: `https://your-bot-name.onrender.com/webhook/yookassa`
 
 ### 7️⃣ Production на VPS (Ubuntu 22.04)
 
