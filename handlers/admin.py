@@ -4,6 +4,7 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.markdown import hbold
 from typing import List, Dict
 
 from filters.admin import IsAdmin
@@ -255,17 +256,19 @@ async def process_new_value(message: Message, state: FSMContext):
             )
             return
 
-    # Обновленям поля в бд
+    # Обновляем поле в бд
     await courses_db.update_course_field(course_id, field, new_value)
 
     await state.clear()
+
+    text = f"✅ Поле {hbold(field)} для курса {hbold('ID ' + str(course_id))} было успешно обновлено!"
+
     await message.answer(
-        f"✅ Поле **{field}** для курса **ID {course_id}** было успешно обновлено!",
+        text,
         reply_markup=admin_main_kb,
-        parse_mode="Markdown",
+        parse_mode="HTML"
     )
 
-    # Показываем обновления
     await view_course_after_edit(message, course_id)
 
 
