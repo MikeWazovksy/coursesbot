@@ -18,4 +18,4 @@ YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
 
 # Настройки базы данных
-DB_NAME = "bot_database.db"
+DB_NAME = "database.db"
