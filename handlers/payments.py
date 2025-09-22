@@ -1,9 +1,9 @@
-
 import logging
 import asyncio
 from aiohttp import web
 from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.exceptions import TelegramBadRequest
 from yookassa.domain.notification import WebhookNotification
 
 from models import payments as payments_db
@@ -19,22 +19,14 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
         payment = notification.object
         metadata = payment.metadata
 
-        payment_id_raw = metadata.get("payment_id")
-        user_id_raw = metadata.get("user_id")
-        course_id_raw = metadata.get("course_id")
-        message_id_raw = metadata.get("message_id")
+        payment_id = int(metadata.get("payment_id"))
+        user_id = int(metadata.get("user_id"))
+        course_id = int(metadata.get("course_id"))
+        message_id = int(metadata.get("message_id"))
 
-        if not all([payment_id_raw, user_id_raw, course_id_raw, message_id_raw]):
+        if not all([payment_id, user_id, course_id, message_id]):
             logging.error(f"Недостаточно метаданных в вебхуке от ЮKassa: {metadata}")
-            old_payment_id = metadata.get("наш_внутренний_id")
-            if old_payment_id:
-                 logging.warning(f"Получен вебхук со старым форматом метаданных для платежа {old_payment_id}.")
             return web.Response(status=200)
-
-        payment_id = int(payment_id_raw)
-        user_id = int(user_id_raw)
-        course_id = int(course_id_raw)
-        message_id = int(message_id_raw)
 
         payment_info = await payments_db.get_payment_info(payment_id)
         if payment_info and payment_info['status'] != 'pending':
@@ -57,11 +49,17 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
             builder = InlineKeyboardBuilder()
             builder.button(text="Попробовать снова", callback_data=CourseCallbackFactory(action="buy", course_id=course_id))
 
-            await bot.edit_message_text(
-                chat_id=user_id, message_id=message_id,
-                text="❌ Время оплаты истекло или платёж был отменен. Ссылка больше недействительна.",
-                reply_markup=builder.as_markup()
-            )
+            try:
+                await bot.edit_message_text(
+                    chat_id=user_id, message_id=message_id,
+                    text="❌ Время оплаты истекло или платёж был отменен. Ссылка больше недействительна.",
+                    reply_markup=builder.as_markup()
+                )
+            except TelegramBadRequest as e:
+                if "message is not modified" in e.message:
+                    logging.info("Сообщение об отмене уже было отправлено. Игнорируем ошибку.")
+                else:
+                    raise e
             logging.info(f"Payment {payment_id} canceled for user {user_id}.")
 
     except Exception as e:
