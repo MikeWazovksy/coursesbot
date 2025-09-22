@@ -1,3 +1,4 @@
+import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
 from aiogram.types import Message, CallbackQuery
@@ -71,6 +72,7 @@ async def buy_course_handler(
     callback_data: CourseCallbackFactory,
     bot: Bot
 ):
+    logging.warning("--- ЗАПУЩЕН НОВЫЙ buy_course_handler ---")
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(course_id)
 
