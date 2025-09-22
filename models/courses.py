@@ -16,12 +16,13 @@ async def get_course_by_id(course_id: int) -> Optional[Tuple]:
         return await cursor.fetchone()
 
 
-async def add_course(
-    title: str, short_desc: str, full_desc: str, link: str, price: float
-):
+async def add_course(title: str, short_desc: str, full_desc: str, link: str, price: float):
     async with aiosqlite.connect(DB_NAME) as db:
+        # ИСПРАВЛЕННЫЙ КОД
         await db.execute(
-            (title, short_desc, full_desc, link, price),
+            """INSERT INTO courses (title, short_description, full_description, materials_link, price)
+            VALUES (?, ?, ?, ?, ?)""",
+            (title, short_desc, full_desc, link, price)
         )
         await db.commit()
 
