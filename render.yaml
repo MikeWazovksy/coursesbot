@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: coursesbot
+    env: python
+    plan: free
+    rootDirectory: project
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m bot
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: YOOKASSA_SHOP_ID
+        sync: false
+      - key: YOOKASSA_SECRET_KEY
+        sync: false
+      - key: WEBHOOK_HOST
+        sync: false
+    autoDeploy: true

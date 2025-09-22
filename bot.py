@@ -1,14 +1,10 @@
 # bot.py
-import sys
 import os
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-
-# Добавляем корень проекта в sys.path, чтобы Python видел все папки
-sys.path.insert(0, "/opt/render/project/src")
 
 # Импорты конфигурации и базы
 from config import BOT_TOKEN, WEBHOOK_HOST
@@ -25,7 +21,7 @@ TELEGRAM_WEBHOOK_PATH = "/webhook"
 TELEGRAM_WEBHOOK_URL = f"{WEBHOOK_HOST}{TELEGRAM_WEBHOOK_PATH}"
 YOOKASSA_WEBHOOK_PATH = "/webhook/yookassa"
 APP_HOST = "0.0.0.0"
-APP_PORT = 8080
+APP_PORT = int(os.environ.get("PORT", 8080))
 
 
 async def on_startup(bot: Bot):
