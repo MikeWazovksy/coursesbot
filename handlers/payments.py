@@ -20,16 +20,27 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
         payment_id = int(payment.metadata.get("наш_внутренний_id"))
 
         if not payment_id:
-            logging.error("В метаданных не найден ID платежа.")
+            logging.error("В метаданных ЮKassa не найден наш внутренний ID платежа.")
             return web.Response(status=200)
+
+        # --- ДОБАВЛЯЕМ ПРОВЕРКИ ---
+        payment_info = await payments_db.get_payment_info(payment_id)
+        if not payment_info:
+            logging.error(f"Платёж с ID {payment_id} не найден в нашей базе данных.")
+            return web.Response(status=200)
+
+        user_id = payment_info.get('user_id')
+        course_id = payment_info.get('course_id')
+        message_id = payment_info.get('message_id')
+
+        # Убедимся, что у нас есть всё необходимое для редактирования сообщения
+        if not all([user_id, course_id, message_id]):
+            logging.error(f"Недостаточно данных для платежа ID {payment_id}. user_id: {user_id}, course_id: {course_id}, message_id: {message_id}")
+            return web.Response(status=200)
+        # --- КОНЕЦ ПРОВЕРОК ---
 
         if notification.event == "payment.succeeded":
             await payments_db.update_payment_status(payment_id, "succeeded")
-            payment_info = await payments_db.get_payment_info(payment_id)
-            user_id = payment_info['user_id']
-            course_id = payment_info['course_id']
-            message_id = payment_info['message_id']
-
             await user_courses_db.add_user_course(user_id, course_id)
 
             await bot.edit_message_text(
@@ -41,12 +52,7 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
 
         elif notification.event == "payment.canceled":
             await payments_db.update_payment_status(payment_id, "canceled")
-            payment_info = await payments_db.get_payment_info(payment_id)
-            user_id = payment_info['user_id']
-            course_id = payment_info['course_id']
-            message_id = payment_info['message_id']
 
-            # Создаем кнопку "Попробовать снова"
             builder = InlineKeyboardBuilder()
             builder.button(text="Попробовать снова", callback_data=CourseCallbackFactory(action="buy", course_id=course_id))
 
@@ -59,6 +65,6 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
             logging.info(f"Payment {payment_id} canceled for user {user_id}.")
 
     except Exception as e:
-        logging.error(f"Ошибка при обработке вебхука от ЮKassa: {e}")
+        logging.error(f"Критическая ошибка при обработке вебхука от ЮKassa: {e}", exc_info=True)
 
     return web.Response(status=200)
