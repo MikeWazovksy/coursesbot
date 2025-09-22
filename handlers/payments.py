@@ -3,7 +3,7 @@
 import logging
 from aiohttp import web
 from aiogram import Bot
-from yookassa import WebhookNotification
+from yookassa.domain.notification import WebhookNotification
 from models import payments as payments_db
 from models import user_courses as user_courses_db
 
