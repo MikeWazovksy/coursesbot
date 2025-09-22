@@ -36,6 +36,12 @@ def get_admin_courses_kb(courses: list):
             text=f"ID: {course[0]} | {course[1]}",
             callback_data=AdminCourseCallback(action="view", course_id=course[0]),
         )
+
+    builder.button(
+        text="⬅️ Назад в меню",
+        callback_data=AdminCourseCallback(action="back_to_main_menu", course_id=0)
+    )
+
     builder.adjust(1)
     return builder.as_markup()
 
