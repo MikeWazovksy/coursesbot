@@ -37,10 +37,16 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
             await payments_db.update_payment_status(payment_id, "succeeded")
             await user_courses_db.add_user_course(user_id, course_id)
 
-            await bot.edit_message_text(
-                chat_id=user_id, message_id=message_id,
-                text="✅ Оплата прошла успешно! Вам открыт доступ к курсу."
-            )
+            try:
+                await bot.edit_message_text(
+                    chat_id=user_id, message_id=message_id,
+                    text="✅ Оплата прошла успешно! Вам открыт доступ к курсу."
+                )
+            except TelegramBadRequest as e:
+                if "message to edit not found" in e.message or "message is not modified" in e.message:
+                    logging.warning(f"Не удалось отредактировать сообщение {message_id} (уже изменено или удалено).")
+                else:
+                    raise e
             logging.info(f"Payment {payment_id} succeeded for user {user_id}.")
 
         elif notification.event == "payment.canceled":
@@ -56,10 +62,11 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
                     reply_markup=builder.as_markup()
                 )
             except TelegramBadRequest as e:
-                if "message is not modified" in e.message:
-                    logging.info("Сообщение об отмене уже было отправлено. Игнорируем ошибку.")
+                if "message to edit not found" in e.message or "message is not modified" in e.message:
+                    logging.warning(f"Не удалось отредактировать сообщение {message_id} (уже изменено или удалено).")
                 else:
                     raise e
+            # --- КОНЕЦ ЗАЩИТЫ ---
             logging.info(f"Payment {payment_id} canceled for user {user_id}.")
 
     except Exception as e:
