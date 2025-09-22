@@ -67,7 +67,9 @@ async def show_course_details(
 # Кнопка купить
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "buy"))
 async def buy_course_handler(
-    callback: CallbackQuery, callback_data: CourseCallbackFactory
+    callback: CallbackQuery,
+    callback_data: CourseCallbackFactory,
+    bot: Bot  # <-- ДОБАВЛЯЕМ ЭТОТ АРГУМЕНТ
 ):
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(course_id)
@@ -110,7 +112,7 @@ async def buy_course_handler(
     builder = InlineKeyboardBuilder()
     builder.button(text="➡️ Оплатить", url=payment_url)
 
-    # Используем bot.edit_message_text для большей надежности
+    # Теперь `bot` здесь определён, и эта строка сработает
     await bot.edit_message_text(
         chat_id=user_id,
         message_id=message_id,
