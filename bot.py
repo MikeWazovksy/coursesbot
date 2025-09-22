@@ -1,11 +1,16 @@
 # bot.py
+import sys
+import os
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-# Импорты
+# Добавляем корень проекта в sys.path, чтобы Python видел все папки
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Импорты конфигурации и базы
 from config import BOT_TOKEN, WEBHOOK_HOST
 from database import initialize_db
 
