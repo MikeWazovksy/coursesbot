@@ -9,7 +9,7 @@ async def add_user(user_id: int, username: str, full_name: str):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             "INSERT OR IGNORE INTO users (user_id, username, full_name) VALUES (?, ?, ?)",
-            (user_id, full_name, username),
+            (user_id, username, full_name),
         )
         await db.commit()
 
