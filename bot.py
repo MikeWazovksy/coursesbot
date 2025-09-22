@@ -8,7 +8,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 # Добавляем корень проекта в sys.path, чтобы Python видел все папки
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, "/opt/render/project/src")
 
 # Импорты конфигурации и базы
 from config import BOT_TOKEN, WEBHOOK_HOST
