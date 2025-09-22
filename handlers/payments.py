@@ -1,5 +1,3 @@
-# handlers/payments.py
-
 import logging
 import asyncio
 from aiohttp import web
@@ -30,7 +28,11 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
             logging.error(f"Недостаточно метаданных в вебхуке от ЮKassa: {metadata}")
             return web.Response(status=200)
 
-        # --- ОСНОВНАЯ ЛОГИКА ---
+        payment_info = await payments_db.get_payment_info(payment_id)
+        if payment_info and payment_info['status'] != 'pending':
+            logging.info(f"Повторный вебхук для уже обработанного платежа {payment_id}. Игнорируем.")
+            return web.Response(status=200)
+
         if notification.event == "payment.succeeded":
             await payments_db.update_payment_status(payment_id, "succeeded")
             await user_courses_db.add_user_course(user_id, course_id)
@@ -42,30 +44,22 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
             logging.info(f"Payment {payment_id} succeeded for user {user_id}.")
 
         elif notification.event == "payment.canceled":
-            # --- ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ ---
-            logging.warning(f"--- НАЧАТА ОБРАБОТКА ОТМЕНЫ ПЛАТЕЖА ID: {payment_id} ---")
-            logging.warning(f"Данные из metadata: user_id={user_id}, message_id={message_id}, course_id={course_id}")
-
             await payments_db.update_payment_status(payment_id, "canceled")
-            logging.warning("Статус в БД успешно изменен на 'canceled'.")
 
             builder = InlineKeyboardBuilder()
             builder.button(text="Попробовать снова", callback_data=CourseCallbackFactory(action="buy", course_id=course_id))
 
-            text_to_send = "❌ Время оплаты истекло или платёж был отменен. Ссылка больше недействительна."
-
             try:
-                logging.warning(f"Пытаюсь отредактировать сообщение: chat_id={user_id}, message_id={message_id}")
                 await bot.edit_message_text(
-                    chat_id=user_id,
-                    message_id=message_id,
-                    text=text_to_send,
+                    chat_id=user_id, message_id=message_id,
+                    text="❌ Время оплаты истекло или платёж был отменен. Ссылка больше недействительна.",
                     reply_markup=builder.as_markup()
                 )
-                logging.warning("--- УСПЕШНОЕ ЗАВЕРШЕНИЕ bot.edit_message_text ---")
-            except Exception as e:
-                logging.error(f"!!! ОШИБКА ПРИ ВЫЗОВЕ bot.edit_message_text: {e}", exc_info=True)
-
+            except TelegramBadRequest as e:
+                if "message is not modified" in e.message:
+                    logging.info("Сообщение об отмене уже было отправлено. Игнорируем ошибку.")
+                else:
+                    raise e
             logging.info(f"Payment {payment_id} canceled for user {user_id}.")
 
     except Exception as e:
