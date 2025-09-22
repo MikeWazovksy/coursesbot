@@ -1,6 +1,7 @@
 # handlers/payments.py
 
 import logging
+import asyncio
 from aiohttp import web
 from aiogram import Bot
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -23,21 +24,26 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
             logging.error("В метаданных ЮKassa не найден наш внутренний ID платежа.")
             return web.Response(status=200)
 
-        # --- ДОБАВЛЯЕМ ПРОВЕРКИ ---
         payment_info = await payments_db.get_payment_info(payment_id)
+
+        # ИСПРАВЛЕНИЕ ЗДЕСЬ: используем [] вместо .get()
+        if payment_info and not payment_info['message_id']:
+            logging.warning(f"Message_id для платежа {payment_id} еще не записан. Ждем 2 секунды и пробуем снова.")
+            await asyncio.sleep(2)
+            payment_info = await payments_db.get_payment_info(payment_id)
+
         if not payment_info:
-            logging.error(f"Платёж с ID {payment_id} не найден в нашей базе данных.")
+            logging.error(f"Платёж с ID {payment_id} не найден в нашей базе данных после ожидания.")
             return web.Response(status=200)
 
-        user_id = payment_info.get('user_id')
-        course_id = payment_info.get('course_id')
-        message_id = payment_info.get('message_id')
+        # ИСПРАВЛЕНИЕ ЗДЕСЬ: используем [] вместо .get()
+        user_id = payment_info['user_id']
+        course_id = payment_info['course_id']
+        message_id = payment_info['message_id']
 
-        # Убедимся, что у нас есть всё необходимое для редактирования сообщения
         if not all([user_id, course_id, message_id]):
             logging.error(f"Недостаточно данных для платежа ID {payment_id}. user_id: {user_id}, course_id: {course_id}, message_id: {message_id}")
             return web.Response(status=200)
-        # --- КОНЕЦ ПРОВЕРОК ---
 
         if notification.event == "payment.succeeded":
             await payments_db.update_payment_status(payment_id, "succeeded")
