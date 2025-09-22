@@ -41,6 +41,7 @@ def get_admin_courses_kb(courses: list):
 
 
 def get_course_manage_kb(course_id: int):
+    """Генерирует меню управления для выбранного курса."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text="✏️ Редактировать",
@@ -50,7 +51,11 @@ def get_course_manage_kb(course_id: int):
         text="🗑️ Удалить",
         callback_data=AdminCourseCallback(action="delete", course_id=course_id),
     )
-    builder.adjust(1)
+    builder.button(
+        text="⬅️ Назад к списку",
+        callback_data=AdminCourseCallback(action="back_to_list", course_id=0)
+    )
+    builder.adjust(2, 1)
     return builder.as_markup()
 
 

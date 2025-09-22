@@ -195,6 +195,18 @@ async def start_edit_course(
     await callback.answer()
 
 
+@admin_router.callback_query(AdminCourseCallback.filter(F.action == "back_to_list"))
+async def back_to_course_list_admin(callback: CallbackQuery):
+
+    all_courses = await courses_db.get_all_courses()
+
+    await callback.message.edit_text(
+        "Выберите курс для управления:",
+        reply_markup=get_admin_courses_kb(all_courses)
+    )
+    await callback.answer()
+
+
 # Обробатываем поля редактирования
 @admin_router.callback_query(EditCourseCallback.filter(), EditCourse.choosing_field)
 async def choose_field_to_edit(callback: CallbackQuery, callback_data: EditCourseCallback, state: FSMContext):
