@@ -1,7 +1,7 @@
 # bot.py
 import sys
 import os
-sys.path.append(os.getcwd())
+sys.path.append("/opt/render/project/src") # можно убрать или закоментировать , если установка будет не на рендере
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher
