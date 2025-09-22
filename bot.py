@@ -1,11 +1,14 @@
 # bot.py
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 import logging
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-# --- Импорты из нашего проекта ---
+# Импорты
 from config import BOT_TOKEN, WEBHOOK_HOST
 from database import initialize_db
 
@@ -15,7 +18,7 @@ from handlers.admin import admin_router
 from handlers.payments import yookassa_webhook_handler
 from middlewares.throttling import ThrottlingMiddleware
 
-# --- Настройки ---
+# Настройки
 TELEGRAM_WEBHOOK_PATH = "/webhook"
 TELEGRAM_WEBHOOK_URL = f"{WEBHOOK_HOST}{TELEGRAM_WEBHOOK_PATH}"
 YOOKASSA_WEBHOOK_PATH = "/webhook/yookassa"
