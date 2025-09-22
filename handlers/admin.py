@@ -176,7 +176,7 @@ async def confirm_delete_course(
     await courses_db.delete_course(course_id)
 
     await callback.message.edit_text("Курс был успешно удален.")
-    await callback.answer("Курс удален", show_alert=True)
+    await callback.answer()
 
 
 # Начинаем редактирование
@@ -218,14 +218,11 @@ async def choose_field_to_edit(callback: CallbackQuery, callback_data: EditCours
         f"Введите {field_names.get(field, 'новое значение')}:",
         reply_markup=cancel_kb
     )
-    await callback.message.answer("...", reply_markup=cancel_kb)
-    await callback.answer()
 
 
 # Новое значение
 @admin_router.message(EditCourse.entering_new_value)
 async def process_new_value(message: Message, state: FSMContext):
-    """Обновляет данные в БД и завершает процесс."""
     new_value = message.text
     data = await state.get_data()
     course_id = data.get("course_id")
@@ -262,13 +259,17 @@ async def process_new_value(message: Message, state: FSMContext):
 
     await state.clear()
 
-    text = f"✅ Поле {hbold(field)} для курса {hbold('ID ' + str(course_id))} было успешно обновлено!"
+    display_field_names = {
+        'title': 'Название',
+        'short_description': 'Краткое описание',
+        'full_description': 'Полное описание',
+        'materials_link': 'Ссылка на материалы',
+        'price': 'Цена'
+    }
 
-    await message.answer(
-        text,
-        reply_markup=admin_main_kb,
-        parse_mode="HTML"
-    )
+    display_name = display_field_names.get(field, field)
+    text = f"✅ Поле {hbold(display_name)} для курса {hbold('ID ' + str(course_id))} было успешно обновлено!"
+
 
     await view_course_after_edit(message, course_id)
 
