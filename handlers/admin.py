@@ -4,7 +4,8 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.markdown import hbold
+from aiogram.utils.markdown import hbold, hcode
+import html
 from typing import List, Dict
 
 from filters.admin import IsAdmin
@@ -320,13 +321,19 @@ async def format_users_list(users: List[Dict]) -> str:
     if not users:
         return "Пользователи не найдены."
 
-    text = "👥 **Список пользователей:**\n\n"
+    text = f"{hbold('👥 Список пользователей:')}\n\n"
     for user in users:
+        # Экранируем все данные от пользователя
+        user_id = user['user_id']
+        full_name = html.escape(str(user['full_name'] or "Без имени"))
+        username = html.escape(str(user['username'] or "Без юзернейма"))
+        courses_purchased = user['courses_purchased']
+
         text += (
-            f"👤 **ID:** `{user['user_id']}`\n"
-            f"   **Имя:** {user['full_name']}\n"
-            f"   **Username:** @{user['username']}\n"
-            f"   **Куплено курсов:** {user['courses_purchased']}\n"
+            f"👤 {hbold('ID:')} {hcode(user_id)}\n"
+            f"   {hbold('Имя:')} {full_name}\n"
+            f"   {hbold('Username:')} @{username}\n"
+            f"   {hbold('Куплено курсов:')} {courses_purchased}\n"
             f"--------------------\n"
         )
     return text
@@ -346,7 +353,7 @@ async def list_users(message: Message):
         reply_markup=get_users_pagination_kb(
             offset=0, total_users=total_users, page_size=USERS_PER_PAGE
         ),
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
 
@@ -354,6 +361,7 @@ async def list_users(message: Message):
 async def paginate_users_list(
     callback: CallbackQuery, callback_data: UserPaginationCallback
 ):
+    """Обрабатывает нажатия кнопок пагинации."""
     current_offset = callback_data.offset
 
     if callback_data.action == "next":
@@ -371,6 +379,6 @@ async def paginate_users_list(
         reply_markup=get_users_pagination_kb(
             offset=new_offset, total_users=total_users, page_size=USERS_PER_PAGE
         ),
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
     await callback.answer()
