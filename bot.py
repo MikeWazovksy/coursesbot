@@ -12,7 +12,6 @@ from database import initialize_db
 # Импортируем роутеры
 from handlers.user import user_router
 from handlers.admin import admin_router
-from handlers.payments import yookassa_webhook_handler
 from middlewares.throttling import ThrottlingMiddleware
 
 # Настройки
@@ -49,7 +48,6 @@ def main():
 
     telegram_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
     app.router.add_post(TELEGRAM_WEBHOOK_PATH, telegram_handler)
-    app.router.add_post(YOOKASSA_WEBHOOK_PATH, yookassa_webhook_handler)
 
     setup_application(app, dp, bot=bot)
 

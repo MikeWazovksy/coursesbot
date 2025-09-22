@@ -9,10 +9,8 @@ ADMIN_IDS = [
     int(admin_id) for admin_id in os.getenv("ADMIN_IDS", "").split(",") if admin_id
 ]
 
-# Настройки ЮKassa
-
-YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID")
-YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
+# Telegramm Payments Юкасса
+PAYMENT_PROVIDER_TOKEN = os.getenv("PAYMENT_PROVIDER_TOKEN")
 
 # Настройки вебхука
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")

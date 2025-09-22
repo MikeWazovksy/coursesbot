@@ -1,10 +1,12 @@
+# handlers/user.py
+
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery, SuccessfulPayment
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-# --- Импорты ---
+# --- Импорты из нашего проекта ---
 from keyboards.user_kb import (
     main_menu_kb,
     get_courses_list_kb,
@@ -13,16 +15,14 @@ from keyboards.user_kb import (
 )
 from models import users as users_db
 from models import courses as courses_db
-
-from services import payments as payment_service
 from models import payments as payments_db
 from models import user_courses as user_courses_db
-
+from config import PAYMENT_PROVIDER_TOKEN # <-- ИМПОРТИРУЕМ НОВЫЙ ТОКЕН
 
 user_router = Router()
 
 
-# Приветствие
+# --- Хендлеры каталога (остаются без изменений) ---
 @user_router.message(CommandStart())
 async def handle_start(message: Message):
     user = message.from_user
@@ -34,8 +34,6 @@ async def handle_start(message: Message):
         reply_markup=main_menu_kb,
     )
 
-
-# Доступность курсов
 @user_router.message(F.text == "🎓 Доступные курсы")
 async def handle_catalog(message: Message):
     courses = await courses_db.get_all_courses()
@@ -46,8 +44,6 @@ async def handle_catalog(message: Message):
         "Доступные курсы:", reply_markup=get_courses_list_kb(courses)
     )
 
-
-# Цена курса
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "view"))
 async def show_course_details(
     callback: CallbackQuery, callback_data: CourseCallbackFactory
@@ -55,7 +51,7 @@ async def show_course_details(
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(course_id)
     if course:
-        _, title, short_desc, full_desc, price, link = course
+        _, title, _, full_desc, price, _ = course
         text = f"🎓 **{title}**\n\n{full_desc}\n\n💰 **Цена:** {price} руб."
         await callback.message.edit_text(
             text, reply_markup=get_course_details_kb(course_id), parse_mode="Markdown"
@@ -65,63 +61,83 @@ async def show_course_details(
     await callback.answer()
 
 
-# Кнопка купить
+# --- НОВАЯ ЛОГИКА ПОКУПКИ ---
+
+# 1. ЗАМЕНЯЕМ СТАРЫЙ ХЕНДЛЕР НА ЭТОТ
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "buy"))
 async def buy_course_handler(
     callback: CallbackQuery,
     callback_data: CourseCallbackFactory,
     bot: Bot
 ):
-    logging.warning("--- ЗАПУЩЕН НОВЫЙ buy_course_handler ---")
+    await callback.answer() # Сразу отвечаем на нажатие кнопки
+
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(course_id)
 
     if not course:
-        await callback.answer("Курс не найден!", show_alert=True)
+        await callback.message.answer("Курс не найден!")
         return
 
-    _, title, _, _, price, _ = course
+    _, title, short_desc, _, price, _ = course
     user_id = callback.from_user.id
 
+    # Создаем запись в нашей БД, чтобы получить ID для payload
     payment_id = await payments_db.create_pending_payment(user_id, course_id, price)
     if not payment_id:
-        await callback.message.answer("Произошла ошибка при создании платежа.")
-        await callback.answer()
+        await callback.message.answer("Произошла ошибка при создании счета.")
         return
 
-    temp_message = await callback.message.edit_text("Минутку, генерирую ссылку на оплату...")
-    message_id = temp_message.message_id
-
-    await payments_db.update_payment_message_id(payment_id, message_id)
-
-    # УБЕДИТЕСЬ, ЧТО METADATA СОБИРАЕТСЯ ИМЕННО ТАК
-    metadata = {
-        "payment_id": payment_id,
-        "user_id": user_id,
-        "course_id": course_id,
-        "message_id": message_id
-    }
-
-    payment_url, yookassa_payment_id = await payment_service.create_payment(
-        amount=price, description=f"Покупка курса: {title}", metadata=metadata
-    )
-
-    builder = InlineKeyboardBuilder()
-    builder.button(text="➡️ Оплатить", url=payment_url)
-
-    await bot.edit_message_text(
+    # Отправляем пользователю счет (инвойс)
+    await bot.send_invoice(
         chat_id=user_id,
-        message_id=message_id,
-        text=(f"Вы собираетесь купить курс «**{title}**» за **{price}** руб.\n\n"
-              "Нажмите на кнопку ниже. Ссылка действительна 10 минут."),
-        reply_markup=builder.as_markup(),
-        parse_mode="Markdown"
+        title=title,
+        description=short_desc,
+        payload=f"payment_{payment_id}", # Уникальный идентификатор платежа
+        provider_token=PAYMENT_PROVIDER_TOKEN,
+        currency="RUB",
+        prices=[
+            LabeledPrice(
+                label=f"Покупка курса: {title}",
+                amount=int(price * 100)  # !!! ВАЖНО: Цена в копейках
+            )
+        ]
     )
 
-    await callback.answer()
+# 2. ДОБАВЛЯЕМ НОВЫЙ ХЕНДЛЕР ДЛЯ ПОДТВЕРЖДЕНИЯ
+@user_router.pre_checkout_query()
+async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
+    # Этот хендлер вызывается, когда пользователь нажимает "Оплатить" в окне Telegram.
+    # Telegram ждет от нас подтверждения, что мы готовы принять платеж.
+    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+# 3. ДОБАВЛЯЕМ НОВЫЙ ХЕНДЛЕР ДЛЯ УСПЕШНОЙ ОПЛАТЫ
+@user_router.message(F.successful_payment)
+async def process_successful_payment(message: Message):
+    # Этот хендлер вызывается после того, как оплата прошла.
+
+    # Получаем наш внутренний ID платежа из payload
+    payment_id = int(message.successful_payment.invoice_payload.split('_')[1])
+
+    # Находим информацию о платеже в нашей базе
+    payment_info = await payments_db.get_payment_info(payment_id)
+    if not payment_info:
+        logging.error(f"Не найдена информация о платеже {payment_id} после успешной оплаты.")
+        return
+
+    user_id = payment_info['user_id']
+    course_id = payment_info['course_id']
+
+    # Обновляем статус в БД и выдаем курс
+    await payments_db.update_payment_status(payment_id, "succeeded")
+    await user_courses_db.add_user_course(user_id, course_id)
+
+    # Отправляем пользователю подтверждение
+    await message.answer("✅ Оплата прошла успешно! Вам открыт доступ к курсу. Вы можете найти его в разделе '📚 Мои курсы'.")
+    logging.info(f"Платеж {payment_id} успешно завершен для пользователя {user_id}.")
 
 
-# Доступность курсов
+# --- Хендлеры личного кабинета (остаются без изменений) ---
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "back_to_list"))
 async def back_to_courses_list(callback: CallbackQuery):
     courses = await courses_db.get_all_courses()
@@ -129,7 +145,6 @@ async def back_to_courses_list(callback: CallbackQuery):
         "Доступные курсы:", reply_markup=get_courses_list_kb(courses)
     )
     await callback.answer()
-
 
 # Мои курсы
 @user_router.message(F.text == "📚 Мои курсы")
