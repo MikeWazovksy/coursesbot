@@ -26,7 +26,6 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
 
         payment_info = await payments_db.get_payment_info(payment_id)
 
-        # ИСПРАВЛЕНИЕ ЗДЕСЬ: используем [] вместо .get()
         if payment_info and not payment_info['message_id']:
             logging.warning(f"Message_id для платежа {payment_id} еще не записан. Ждем 2 секунды и пробуем снова.")
             await asyncio.sleep(2)
@@ -36,7 +35,10 @@ async def yookassa_webhook_handler(request: web.Request) -> web.Response:
             logging.error(f"Платёж с ID {payment_id} не найден в нашей базе данных после ожидания.")
             return web.Response(status=200)
 
-        # ИСПРАВЛЕНИЕ ЗДЕСЬ: используем [] вместо .get()
+        if payment_info['status'] != 'pending':
+            logging.info(f"Повторный вебхук для уже обработанного платежа {payment_id}. Игнорируем.")
+            return web.Response(status=200)
+
         user_id = payment_info['user_id']
         course_id = payment_info['course_id']
         message_id = payment_info['message_id']

@@ -39,7 +39,7 @@ async def get_payment_info(payment_id: int) -> Optional[Dict]:
     async with aiosqlite.connect(DB_NAME) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT user_id, course_id, message_id FROM payments WHERE id = ?", (payment_id,)
+            "SELECT user_id, course_id, message_id, status FROM payments WHERE id = ?", (payment_id,)
         )
         return await cursor.fetchone()
 
