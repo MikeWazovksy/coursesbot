@@ -68,10 +68,8 @@ async def show_course_details(
     await callback.answer()
 
 
-# --- НОВАЯ ФУНКЦИЯ ДЛЯ ТАЙМЕРА ---
-async def expire_invoice_message(
-    bot: Bot, chat_id: int, message_id: int, payment_id: int
-):
+# --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ ТАЙМЕРА ---
+async def expire_invoice_message(bot: Bot, chat_id: int, payment_id: int):
     """
     Отложенная функция, которая проверяет и отменяет просроченный счет.
     """
@@ -87,19 +85,19 @@ async def expire_invoice_message(
             # Обновляем статус на 'canceled'
             await payments_db.update_payment_status(payment_id, "canceled")
 
-            # Редактируем сообщение, чтобы убрать кнопку "Оплатить"
-            await bot.edit_message_text(
+            # Отправляем НОВОЕ СООБЩЕНИЕ вместо редактирования старого
+            await bot.send_message(
                 chat_id=chat_id,
-                message_id=message_id,
                 text="❌ **Время для оплаты истекло!**\n\nДля покупки курса создайте новый счет.",
                 parse_mode="Markdown",
-                reply_markup=None,  # Убираем все кнопки
             )
         except Exception as e:
-            logging.error(f"Не удалось отредактировать сообщение с инвойсом: {e}")
+            logging.error(
+                f"Не удалось отправить сообщение об истечении срока оплаты: {e}"
+            )
 
 
-# --- ИЗМЕНЁННЫЙ ХЕНДЛЕР ПОКУПКИ ---
+# --- ИСПРАВЛЕННЫЙ ХЕНДЛЕР ПОКУПКИ ---
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "buy"))
 async def buy_course_handler(
     callback: CallbackQuery, callback_data: CourseCallbackFactory, bot: Bot
@@ -122,8 +120,8 @@ async def buy_course_handler(
         return
 
     try:
-        # Отправляем инвойс и сохраняем его Message ID
-        invoice_message = await bot.send_invoice(
+        # Отправляем инвойс
+        await bot.send_invoice(
             chat_id=user_id,
             title=title,
             description=short_desc,
@@ -136,17 +134,14 @@ async def buy_course_handler(
         )
 
         # Запускаем отложенную задачу для отмены через 10 минут
-        asyncio.create_task(
-            expire_invoice_message(
-                bot, invoice_message.chat.id, invoice_message.message_id, payment_id
-            )
-        )
+        # Теперь не передаём message_id, так как не редактируем сообщение
+        asyncio.create_task(expire_invoice_message(bot, user_id, payment_id))
     except Exception as e:
         await callback.message.answer("Произошла ошибка при отправке счета.")
         logging.error(f"Ошибка при отправке инвойса: {e}")
 
 
-# --- ИЗМЕНЁННЫЙ ХЕНДЛЕР PRE_CHECKOUT_QUERY ---
+# --- БЕЗ ИЗМЕНЕНИЙ ---
 @user_router.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
     payload = pre_checkout_query.invoice_payload
@@ -160,7 +155,6 @@ async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
 
     payment_info = await payments_db.get_payment_info(payment_id)
 
-    # Проверяем, не был ли счет уже отменен
     if not payment_info or payment_info["status"] == "canceled":
         await bot.answer_pre_checkout_query(
             pre_checkout_query.id,
@@ -172,10 +166,8 @@ async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 
-# --- БЕЗ ИЗМЕНЕНИЙ ---
 @user_router.message(F.successful_payment)
 async def process_successful_payment(message: Message):
-
     payment_id = int(message.successful_payment.invoice_payload.split("_")[1])
 
     payment_info = await payments_db.get_payment_info(payment_id)
@@ -206,7 +198,6 @@ async def back_to_courses_list(callback: CallbackQuery):
     await callback.answer()
 
 
-# Мои курсы
 @user_router.message(F.text == "📚 Мои курсы")
 async def handle_my_courses(message: Message):
     user_id = message.from_user.id
@@ -225,7 +216,6 @@ async def handle_my_courses(message: Message):
     )
 
 
-# История покупок
 @user_router.message(F.text == "🧾 История покупок")
 async def handle_purchase_history(message: Message):
     user_id = message.from_user.id
