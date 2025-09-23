@@ -3,8 +3,16 @@
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
-from aiogram.types import Message, CallbackQuery, LabeledPrice, PreCheckoutQuery, SuccessfulPayment
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    LabeledPrice,
+    PreCheckoutQuery,
+    SuccessfulPayment,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from datetime import datetime, timedelta
+import asyncio
 
 # --- Импорты из нашего проекта ---
 from keyboards.user_kb import (
@@ -17,12 +25,11 @@ from models import users as users_db
 from models import courses as courses_db
 from models import payments as payments_db
 from models import user_courses as user_courses_db
-from config import PAYMENT_PROVIDER_TOKEN # <-- ИМПОРТИРУЕМ НОВЫЙ ТОКЕН
+from config import PAYMENT_PROVIDER_TOKEN
 
 user_router = Router()
 
 
-# --- Хендлеры каталога (остаются без изменений) ---
 @user_router.message(CommandStart())
 async def handle_start(message: Message):
     user = message.from_user
@@ -34,15 +41,15 @@ async def handle_start(message: Message):
         reply_markup=main_menu_kb,
     )
 
+
 @user_router.message(F.text == "🎓 Доступные курсы")
 async def handle_catalog(message: Message):
     courses = await courses_db.get_all_courses()
     if not courses:
         await message.answer("К сожалению, сейчас нет доступных курсов.")
         return
-    await message.answer(
-        "Доступные курсы:", reply_markup=get_courses_list_kb(courses)
-    )
+    await message.answer("Доступные курсы:", reply_markup=get_courses_list_kb(courses))
+
 
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "view"))
 async def show_course_details(
@@ -61,16 +68,43 @@ async def show_course_details(
     await callback.answer()
 
 
-# --- НОВАЯ ЛОГИКА ПОКУПКИ ---
+# --- НОВАЯ ФУНКЦИЯ ДЛЯ ТАЙМЕРА ---
+async def expire_invoice_message(
+    bot: Bot, chat_id: int, message_id: int, payment_id: int
+):
+    """
+    Отложенная функция, которая проверяет и отменяет просроченный счет.
+    """
+    # Ждём 10 минут, пока счет действителен
+    await asyncio.sleep(600)  # 600 секунд = 10 минут
 
-# 1. ЗАМЕНЯЕМ СТАРЫЙ ХЕНДЛЕР НА ЭТОТ
+    # Проверяем статус платежа в нашей БД
+    payment_info = await payments_db.get_payment_info(payment_id)
+
+    # Если платеж все еще в статусе 'pending' (не оплачен)
+    if payment_info and payment_info["status"] == "pending":
+        try:
+            # Обновляем статус на 'canceled'
+            await payments_db.update_payment_status(payment_id, "canceled")
+
+            # Редактируем сообщение, чтобы убрать кнопку "Оплатить"
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text="❌ **Время для оплаты истекло!**\n\nДля покупки курса создайте новый счет.",
+                parse_mode="Markdown",
+                reply_markup=None,  # Убираем все кнопки
+            )
+        except Exception as e:
+            logging.error(f"Не удалось отредактировать сообщение с инвойсом: {e}")
+
+
+# --- ИЗМЕНЁННЫЙ ХЕНДЛЕР ПОКУПКИ ---
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "buy"))
 async def buy_course_handler(
-    callback: CallbackQuery,
-    callback_data: CourseCallbackFactory,
-    bot: Bot
+    callback: CallbackQuery, callback_data: CourseCallbackFactory, bot: Bot
 ):
-    await callback.answer() # Сразу отвечаем на нажатие кнопки
+    await callback.answer()
 
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(course_id)
@@ -82,62 +116,87 @@ async def buy_course_handler(
     _, title, short_desc, _, price, _ = course
     user_id = callback.from_user.id
 
-    # Создаем запись в нашей БД, чтобы получить ID для payload
     payment_id = await payments_db.create_pending_payment(user_id, course_id, price)
     if not payment_id:
         await callback.message.answer("Произошла ошибка при создании счета.")
         return
 
-    # Отправляем пользователю счет (инвойс)
-    await bot.send_invoice(
-        chat_id=user_id,
-        title=title,
-        description=short_desc,
-        payload=f"payment_{payment_id}", # Уникальный идентификатор платежа
-        provider_token=PAYMENT_PROVIDER_TOKEN,
-        currency="RUB",
-        prices=[
-            LabeledPrice(
-                label=f"Покупка курса: {title}",
-                amount=int(price * 100)  # !!! ВАЖНО: Цена в копейках
-            )
-        ]
-    )
+    try:
+        # Отправляем инвойс и сохраняем его Message ID
+        invoice_message = await bot.send_invoice(
+            chat_id=user_id,
+            title=title,
+            description=short_desc,
+            payload=f"payment_{payment_id}",
+            provider_token=PAYMENT_PROVIDER_TOKEN,
+            currency="RUB",
+            prices=[
+                LabeledPrice(label=f"Покупка курса: {title}", amount=int(price * 100))
+            ],
+        )
 
-# 2. ДОБАВЛЯЕМ НОВЫЙ ХЕНДЛЕР ДЛЯ ПОДТВЕРЖДЕНИЯ
+        # Запускаем отложенную задачу для отмены через 10 минут
+        asyncio.create_task(
+            expire_invoice_message(
+                bot, invoice_message.chat.id, invoice_message.message_id, payment_id
+            )
+        )
+    except Exception as e:
+        await callback.message.answer("Произошла ошибка при отправке счета.")
+        logging.error(f"Ошибка при отправке инвойса: {e}")
+
+
+# --- ИЗМЕНЁННЫЙ ХЕНДЛЕР PRE_CHECKOUT_QUERY ---
 @user_router.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
-    # Этот хендлер вызывается, когда пользователь нажимает "Оплатить" в окне Telegram.
-    # Telegram ждет от нас подтверждения, что мы готовы принять платеж.
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
-
-# 3. ДОБАВЛЯЕМ НОВЫЙ ХЕНДЛЕР ДЛЯ УСПЕШНОЙ ОПЛАТЫ
-@user_router.message(F.successful_payment)
-async def process_successful_payment(message: Message):
-    # Этот хендлер вызывается после того, как оплата прошла.
-
-    # Получаем наш внутренний ID платежа из payload
-    payment_id = int(message.successful_payment.invoice_payload.split('_')[1])
-
-    # Находим информацию о платеже в нашей базе
-    payment_info = await payments_db.get_payment_info(payment_id)
-    if not payment_info:
-        logging.error(f"Не найдена информация о платеже {payment_id} после успешной оплаты.")
+    payload = pre_checkout_query.invoice_payload
+    try:
+        payment_id = int(payload.split("_")[1])
+    except (ValueError, IndexError):
+        await bot.answer_pre_checkout_query(
+            pre_checkout_query.id, ok=False, error_message="Неверный ID платежа."
+        )
         return
 
-    user_id = payment_info['user_id']
-    course_id = payment_info['course_id']
+    payment_info = await payments_db.get_payment_info(payment_id)
 
-    # Обновляем статус в БД и выдаем курс
+    # Проверяем, не был ли счет уже отменен
+    if not payment_info or payment_info["status"] == "canceled":
+        await bot.answer_pre_checkout_query(
+            pre_checkout_query.id,
+            ok=False,
+            error_message="Срок действия счета истек. Пожалуйста, создайте новый счет.",
+        )
+        return
+
+    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+
+# --- БЕЗ ИЗМЕНЕНИЙ ---
+@user_router.message(F.successful_payment)
+async def process_successful_payment(message: Message):
+
+    payment_id = int(message.successful_payment.invoice_payload.split("_")[1])
+
+    payment_info = await payments_db.get_payment_info(payment_id)
+    if not payment_info:
+        logging.error(
+            f"Не найдена информация о платеже {payment_id} после успешной оплаты."
+        )
+        return
+
+    user_id = payment_info["user_id"]
+    course_id = payment_info["course_id"]
+
     await payments_db.update_payment_status(payment_id, "succeeded")
     await user_courses_db.add_user_course(user_id, course_id)
 
-    # Отправляем пользователю подтверждение
-    await message.answer("✅ Оплата прошла успешно! Вам открыт доступ к курсу. Вы можете найти его в разделе '📚 Мои курсы'.")
+    await message.answer(
+        "✅ Оплата прошла успешно! Вам открыт доступ к курсу. Вы можете найти его в разделе '📚 Мои курсы'."
+    )
     logging.info(f"Платеж {payment_id} успешно завершен для пользователя {user_id}.")
 
 
-# --- Хендлеры личного кабинета (остаются без изменений) ---
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "back_to_list"))
 async def back_to_courses_list(callback: CallbackQuery):
     courses = await courses_db.get_all_courses()
@@ -145,6 +204,7 @@ async def back_to_courses_list(callback: CallbackQuery):
         "Доступные курсы:", reply_markup=get_courses_list_kb(courses)
     )
     await callback.answer()
+
 
 # Мои курсы
 @user_router.message(F.text == "📚 Мои курсы")
@@ -164,8 +224,8 @@ async def handle_my_courses(message: Message):
         response_text, parse_mode="Markdown", disable_web_page_preview=True
     )
 
-# История покупок
 
+# История покупок
 @user_router.message(F.text == "🧾 История покупок")
 async def handle_purchase_history(message: Message):
     user_id = message.from_user.id
