@@ -123,8 +123,8 @@ async def buy_course_handler(
         return
 
     try:
-        # Отправляем инвойс
-        await bot.send_invoice(
+        # Отправляем инвойс и сохраняем его Message ID
+        invoice_message = await bot.send_invoice(
             chat_id=user_id,
             title=title,
             description=short_desc,
@@ -136,9 +136,12 @@ async def buy_course_handler(
             ],
         )
 
-        # Запускаем отложенную задачу для отмены через 10 минут
-        # Теперь не передаём message_id, так как не редактируем сообщение
-        asyncio.create_task(expire_invoice_message(bot, user_id, payment_id))
+        # Запускаем отложенную задачу для удаления через 10 минут
+        asyncio.create_task(
+            expire_invoice_message(
+                bot, invoice_message.chat.id, invoice_message.message_id, payment_id
+            )
+        )
     except Exception as e:
         await callback.message.answer("Произошла ошибка при отправке счета.")
         logging.error(f"Ошибка при отправке инвойса: {e}")
