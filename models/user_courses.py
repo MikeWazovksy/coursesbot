@@ -2,7 +2,6 @@ from typing import List, Dict
 import asyncpg
 
 async def add_user_course(pool: asyncpg.Pool, user_id: int, course_id: int):
-    """Добавляет купленный курс пользователю."""
     async with pool.acquire() as conn:
         await conn.execute(
             """

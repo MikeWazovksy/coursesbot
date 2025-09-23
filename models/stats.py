@@ -2,7 +2,6 @@ from typing import Dict
 import asyncpg
 
 async def get_main_stats(pool: asyncpg.Pool) -> Dict:
-    """Собирает основную статистику одним запросом, используя соединение из пула."""
     async with pool.acquire() as conn:
         query = """
         SELECT

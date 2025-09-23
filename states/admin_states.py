@@ -1,8 +1,5 @@
 from aiogram.fsm.state import State, StatesGroup
 
-
-# ------------------------------------------------------------------------------------
-# Админский Стэйт для редактирования курсов
 class AddCourse(StatesGroup):
 
     title = State()  # Ввод названия

@@ -84,7 +84,6 @@ async def process_price(message: Message, state: FSMContext, pool: asyncpg.Pool)
     await message.answer(text, reply_markup=admin_main_kb)
 
 
-# --- Управление курсами ---
 @admin_router.message(F.text == "📋 Список курсов", IsAdmin())
 async def list_courses(message: Message, pool: asyncpg.Pool):
     all_courses = await courses_db.get_all_courses(pool)
@@ -143,7 +142,6 @@ async def back_to_main_menu_admin(callback: CallbackQuery):
     await callback.answer()
 
 
-# --- FSM для редактирования курса ---
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "edit"))
 async def start_edit_course(callback: CallbackQuery, callback_data: AdminCourseCallback, state: FSMContext):
     course_id = callback_data.course_id
