@@ -48,3 +48,9 @@ async def initialize_db():
 
         except Exception as e:
             logging.error(f"Ошибка при инициализации БД: {e}", exc_info=True)
+
+async def close_pool():
+    global pool
+    if pool:
+        await pool.close()
+        logging.info("Пул соединений с PostgreSQL успешно закрыт.")
