@@ -1,7 +1,7 @@
 from typing import List, Dict
-from database import pool
+import asyncpg
 
-async def add_user(user_id: int, username: str, full_name: str):
+async def add_user(pool: asyncpg.Pool, user_id: int, username: str, full_name: str):
     async with pool.acquire() as conn:
         await conn.execute(
             """
@@ -12,14 +12,12 @@ async def add_user(user_id: int, username: str, full_name: str):
             user_id, username, full_name
         )
 
-async def get_total_users_count() -> int:
-    """Возвращает общее количество пользователей."""
+async def get_total_users_count(pool: asyncpg.Pool) -> int:
     async with pool.acquire() as conn:
         count = await conn.fetchval("SELECT COUNT(*) FROM users")
         return count
 
-async def get_paginated_users(limit: int, offset: int) -> List[Dict]:
-    """Возвращает список пользователей с пагинацией."""
+async def get_paginated_users(pool: asyncpg.Pool, limit: int, offset: int) -> List[Dict]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """

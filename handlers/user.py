@@ -1,8 +1,10 @@
 import logging
 import html
 import asyncio
+import asyncpg
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     Message,
     CallbackQuery,
@@ -12,12 +14,7 @@ from aiogram.types import (
 )
 from aiogram.utils.markdown import hbold, hlink
 
-from keyboards.user_kb import (
-    main_menu_kb,
-    get_courses_list_kb,
-    get_course_details_kb,
-    CourseCallbackFactory,
-)
+from keyboards.user_kb import *
 from models import users as users_db
 from models import courses as courses_db
 from models import payments as payments_db
@@ -28,10 +25,11 @@ user_router = Router()
 
 
 @user_router.message(CommandStart())
-async def handle_start(message: Message):
+async def handle_start(message: Message, state: FSMContext):
+    pool: asyncpg.Pool = state.data['pool']
     user = message.from_user
     await users_db.add_user(
-        user_id=user.id, username=user.username, full_name=user.full_name
+        pool, user_id=user.id, username=user.username, full_name=user.full_name
     )
     await message.answer(
         f"👋 Привет, {user.first_name}!\nДобро пожаловать в наш бот онлайн-курсов.",
@@ -39,8 +37,9 @@ async def handle_start(message: Message):
     )
 
 @user_router.message(F.text == "🎓 Доступные курсы")
-async def handle_catalog(message: Message):
-    courses = await courses_db.get_all_courses()
+async def handle_catalog(message: Message, state: FSMContext):
+    pool: asyncpg.Pool = state.data['pool']
+    courses = await courses_db.get_all_courses(pool)
     if not courses:
         await message.answer("К сожалению, сейчас нет доступных курсов.")
         return
@@ -49,10 +48,11 @@ async def handle_catalog(message: Message):
 
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "view"))
 async def show_course_details(
-    callback: CallbackQuery, callback_data: CourseCallbackFactory
+    callback: CallbackQuery, callback_data: CourseCallbackFactory, state: FSMContext
 ):
+    pool: asyncpg.Pool = state.data['pool']
     course_id = callback_data.course_id
-    course = await courses_db.get_course_by_id(course_id)
+    course = await courses_db.get_course_by_id(pool, course_id)
     if course:
         title = html.escape(course.get('title', ''))
         full_desc = html.escape(course.get('full_description', ''))
@@ -69,31 +69,29 @@ async def show_course_details(
     await callback.answer()
 
 async def expire_invoice_message(
-    bot: Bot, chat_id: int, message_id: int, payment_id: int
+    bot: Bot, pool: asyncpg.Pool, chat_id: int, message_id: int, payment_id: int
 ):
-    """Фоновая задача, которая удаляет инвойс и отменяет платеж через 10 минут."""
     await asyncio.sleep(600)
-
-    payment_info = await payments_db.get_payment_info(payment_id)
-
+    payment_info = await payments_db.get_payment_info(pool, payment_id)
     if payment_info and payment_info["status"] == "pending":
         try:
-            await payments_db.update_payment_status(payment_id, "canceled")
+            await payments_db.update_payment_status(pool, payment_id, "canceled")
             await bot.delete_message(chat_id=chat_id, message_id=message_id)
             await bot.send_message(
                 chat_id=chat_id,
-                text=f"❌ {hbold('Время для оплаты истекло!')}\n\nДля покупки курса, пожалуйста, создайте новый счет.",
+                text=f"❌ {hbold('Время для оплаты истекло!')}\n\nДля покупки курса создайте новый счет.",
             )
         except Exception as e:
             logging.error(f"Не удалось обработать истекший счет (payment_id: {payment_id}): {e}")
 
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "buy"))
 async def buy_course_handler(
-    callback: CallbackQuery, callback_data: CourseCallbackFactory, bot: Bot
+    callback: CallbackQuery, callback_data: CourseCallbackFactory, bot: Bot, state: FSMContext
 ):
     await callback.answer()
+    pool: asyncpg.Pool = state.data['pool']
     course_id = callback_data.course_id
-    course = await courses_db.get_course_by_id(course_id)
+    course = await courses_db.get_course_by_id(pool, course_id)
     if not course:
         await callback.message.answer("Курс не найден!")
         return
@@ -101,7 +99,7 @@ async def buy_course_handler(
     _, title, short_desc, _, price, _ = course
     user_id = callback.from_user.id
 
-    payment_id = await payments_db.create_pending_payment(user_id, course_id, price)
+    payment_id = await payments_db.create_pending_payment(pool, user_id, course_id, price)
     if not payment_id:
         await callback.message.answer("Произошла ошибка при создании счета.")
         return
@@ -109,18 +107,15 @@ async def buy_course_handler(
     try:
         invoice_message = await bot.send_invoice(
             chat_id=user_id,
-            title=title,
-            description=short_desc,
+            title=title, description=short_desc,
             payload=f"payment_{payment_id}",
             provider_token=PAYMENT_PROVIDER_TOKEN,
             currency="RUB",
-            prices=[
-                LabeledPrice(label=f"Покупка курса: {title}", amount=int(price * 100))
-            ],
+            prices=[LabeledPrice(label=f"Покупка курса: {title}", amount=int(price * 100))]
         )
         asyncio.create_task(
             expire_invoice_message(
-                bot, invoice_message.chat.id, invoice_message.message_id, payment_id
+                bot, pool, invoice_message.chat.id, invoice_message.message_id, payment_id
             )
         )
     except Exception as e:
@@ -128,7 +123,8 @@ async def buy_course_handler(
         logging.error(f"Ошибка при отправке инвойса: {e}")
 
 @user_router.pre_checkout_query()
-async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
+async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot, state: FSMContext):
+    pool: asyncpg.Pool = state.data['pool']
     payload = pre_checkout_query.invoice_payload
     try:
         payment_id = int(payload.split("_")[1])
@@ -138,66 +134,64 @@ async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
         )
         return
 
-    payment_info = await payments_db.get_payment_info(payment_id)
-
+    payment_info = await payments_db.get_payment_info(pool, payment_id)
     if not payment_info or payment_info["status"] != "pending":
         await bot.answer_pre_checkout_query(
-            pre_checkout_query.id,
-            ok=False,
+            pre_checkout_query.id, ok=False,
             error_message="Срок действия счета истек. Пожалуйста, создайте новый счет.",
         )
         return
-
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 @user_router.message(F.successful_payment)
-async def process_successful_payment(message: Message):
+async def process_successful_payment(message: Message, state: FSMContext):
+    pool: asyncpg.Pool = state.data['pool']
     payment_id = int(message.successful_payment.invoice_payload.split("_")[1])
-    payment_info = await payments_db.get_payment_info(payment_id)
+    payment_info = await payments_db.get_payment_info(pool, payment_id)
     if not payment_info:
         logging.error(f"Не найдена информация о платеже {payment_id} после успешной оплаты.")
         return
 
     user_id = payment_info["user_id"]
     course_id = payment_info["course_id"]
-    await payments_db.update_payment_status(payment_id, "succeeded")
-    await user_courses_db.add_user_course(user_id, course_id)
+    await payments_db.update_payment_status(pool, payment_id, "succeeded")
+    await user_courses_db.add_user_course(pool, user_id, course_id)
     await message.answer("✅ Оплата прошла успешно! Вам открыт доступ к курсу.")
     logging.info(f"Платеж {payment_id} успешно завершен для пользователя {user_id}.")
 
 
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "back_to_list"))
-async def back_to_courses_list(callback: CallbackQuery):
-    courses = await courses_db.get_all_courses()
+async def back_to_courses_list(callback: CallbackQuery, state: FSMContext):
+    pool: asyncpg.Pool = state.data['pool']
+    courses = await courses_db.get_all_courses(pool)
     await callback.message.edit_text(
         "Доступные курсы:", reply_markup=get_courses_list_kb(courses)
     )
     await callback.answer()
 
 @user_router.message(F.text == "📚 Мои курсы")
-async def handle_my_courses(message: Message):
+async def handle_my_courses(message: Message, state: FSMContext):
+    pool: asyncpg.Pool = state.data['pool']
     user_id = message.from_user.id
-    my_courses = await user_courses_db.get_user_courses_with_details(user_id)
+    my_courses = await user_courses_db.get_user_courses_with_details(pool, user_id)
     if not my_courses:
         await message.answer("У вас пока нет купленных курсов.")
         return
-
     response_text = f"📚 {hbold('Ваши курсы:')}\n\n"
     for course in my_courses:
         title = html.escape(course['title'])
         link = hlink('Ссылка на материалы', course['materials_link'])
         response_text += f"🎓 {hbold(title)}\n🔗 {link}\n\n"
-
     await message.answer(response_text, disable_web_page_preview=True)
 
 @user_router.message(F.text == "🧾 История покупок")
-async def handle_purchase_history(message: Message):
+async def handle_purchase_history(message: Message, state: FSMContext):
+    pool: asyncpg.Pool = state.data['pool']
     user_id = message.from_user.id
-    history = await payments_db.get_user_payment_history(user_id)
+    history = await payments_db.get_user_payment_history(pool, user_id)
     if not history:
         await message.answer("Ваша история покупок пуста.")
         return
-
     response_text = f"🧾 {hbold('История ваших покупок:')}\n\n"
     status_map = {"succeeded": "✅ Успешно", "pending": "⏳ В ожидании", "canceled": "❌ Отменен"}
     for payment in history:

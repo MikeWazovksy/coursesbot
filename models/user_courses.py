@@ -1,7 +1,8 @@
 from typing import List, Dict
-from database import pool
+import asyncpg
 
-async def add_user_course(user_id: int, course_id: int):
+async def add_user_course(pool: asyncpg.Pool, user_id: int, course_id: int):
+    """Добавляет купленный курс пользователю."""
     async with pool.acquire() as conn:
         await conn.execute(
             """
@@ -12,7 +13,7 @@ async def add_user_course(user_id: int, course_id: int):
             user_id, course_id
         )
 
-async def get_user_courses_with_details(user_id: int) -> List[Dict]:
+async def get_user_courses_with_details(pool: asyncpg.Pool, user_id: int) -> List[Dict]:
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """

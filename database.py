@@ -1,21 +1,17 @@
-# database.py
 import asyncpg
 import logging
 from config import DATABASE_URL
 
-pool = None
-
 async def create_pool():
-    global pool
-    if pool is None:
-        try:
-            # ИЗМЕНЕНИЕ: используем dsn=DATABASE_URL для подключения
-            pool = await asyncpg.create_pool(dsn=DATABASE_URL)
-            logging.info("Пул соединений с PostgreSQL успешно создан.")
-        except Exception as e:
-            logging.error(f"Не удалось создать пул соединений: {e}", exc_info=True)
+    try:
+        pool = await asyncpg.create_pool(dsn=DATABASE_URL)
+        logging.info("Пул соединений с PostgreSQL успешно создан.")
+        return pool
+    except Exception as e:
+        logging.error(f"Не удалось создать пул соединений: {e}", exc_info=True)
+        return None
 
-async def initialize_db():
+async def initialize_db(pool: asyncpg.Pool):
     if not pool:
         logging.error("Пул соединений не был создан. Инициализация БД невозможна.")
         return
@@ -51,8 +47,7 @@ async def initialize_db():
         except Exception as e:
             logging.error(f"Ошибка при инициализации БД: {e}", exc_info=True)
 
-async def close_pool():
-    global pool
+async def close_pool(pool: asyncpg.Pool):
     if pool:
         await pool.close()
         logging.info("Пул соединений с PostgreSQL успешно закрыт.")
