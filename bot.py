@@ -25,16 +25,15 @@ APP_PORT = int(os.environ.get("PORT", 8080))
 
 
 async def on_startup(bot: Bot):
-    await create_pool()
-    await initialize_db()
-
     await bot.set_webhook(
         TELEGRAM_WEBHOOK_URL,
         allowed_updates=["message", "callback_query", "pre_checkout_query"],
     )
     logging.info(f"Webhook set to {TELEGRAM_WEBHOOK_URL}")
 
-# Создания пула
+    await create_pool()
+    await initialize_db()
+
 async def on_shutdown(bot: Bot):
     logging.warning("Бот останавливается...")
     await close_pool()
