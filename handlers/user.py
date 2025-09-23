@@ -69,9 +69,11 @@ async def show_course_details(
 
 
 # --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ ТАЙМЕРА ---
-async def expire_invoice_message(bot: Bot, chat_id: int, payment_id: int):
+async def expire_invoice_message(
+    bot: Bot, chat_id: int, message_id: int, payment_id: int
+):
     """
-    Отложенная функция, которая проверяет и отменяет просроченный счет.
+    Отложенная функция, которая проверяет, и удаляет просроченный счет.
     """
     # Ждём 10 минут, пока счет действителен
     await asyncio.sleep(600)  # 600 секунд = 10 минут
@@ -85,16 +87,17 @@ async def expire_invoice_message(bot: Bot, chat_id: int, payment_id: int):
             # Обновляем статус на 'canceled'
             await payments_db.update_payment_status(payment_id, "canceled")
 
-            # Отправляем НОВОЕ СООБЩЕНИЕ вместо редактирования старого
+            # Удаляем старое сообщение с инвойсом
+            await bot.delete_message(chat_id=chat_id, message_id=message_id)
+
+            # Отправляем новое сообщение
             await bot.send_message(
                 chat_id=chat_id,
                 text="❌ **Время для оплаты истекло!**\n\nДля покупки курса создайте новый счет.",
                 parse_mode="Markdown",
             )
         except Exception as e:
-            logging.error(
-                f"Не удалось отправить сообщение об истечении срока оплаты: {e}"
-            )
+            logging.error(f"Не удалось удалить или отправить сообщение: {e}")
 
 
 # --- ИСПРАВЛЕННЫЙ ХЕНДЛЕР ПОКУПКИ ---
