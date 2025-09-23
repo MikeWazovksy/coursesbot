@@ -19,7 +19,7 @@ from models import users as users_db
 from models import courses as courses_db
 from models import payments as payments_db
 from models import user_courses as user_courses_db
-from config import PAYMENT_PROVIDER_TOKEN, ADMIN_IDS # Добавили ADMIN_IDS
+from config import PAYMENT_PROVIDER_TOKEN
 
 user_router = Router()
 
@@ -27,20 +27,15 @@ user_router = Router()
 @user_router.message(CommandStart())
 async def handle_start(message: Message, pool: asyncpg.Pool):
     user = message.from_user
+
     await users_db.add_user(
         pool, user_id=user.id, username=user.username, full_name=user.full_name
     )
-    # Отправляем админскую клавиатуру админу
-    if user.id in ADMIN_IDS:
-        await message.answer(
-            f"👋 Привет, {user.first_name}!\nВы авторизованы как администратор.",
-            reply_markup=admin_main_kb,
-        )
-    else:
-        await message.answer(
-            f"👋 Привет, {user.first_name}!\nДобро пожаловать в наш бот онлайн-курсов.",
-            reply_markup=main_menu_kb,
-        )
+
+    await message.answer(
+        f"👋 Привет, {user.first_name}!\nДобро пожаловать в наш бот онлайн-курсов.",
+        reply_markup=main_menu_kb,
+    )
 
 @user_router.message(F.text == "🎓 Доступные курсы")
 async def handle_catalog(message: Message, pool: asyncpg.Pool):
