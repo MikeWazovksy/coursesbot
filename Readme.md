@@ -1,6 +1,6 @@
 # 🤖 Telegram-бот для продажи онлайн-курсов
 
-Многофункциональный Telegram-бот для автоматизированной продажи онлайн-курсов с админ-панелью, статистикой и интеграцией с платежной системой ЮKassa через Telegram Payments.
+Многофункциональный Telegram-бот для автоматизированной продажи онлайн-курсов с админ-панелью, статистикой и интеграцией с платежной системой ЮKassa.
 
 ---
 
@@ -9,20 +9,18 @@
 ### Для пользователей
 
 - 🎓 **Каталог курсов** — просмотр списка доступных курсов с описанием и ценами.
-- 💳 **Покупка** — интеграция с ЮKassa через Telegram Payment API.
+- 💳 **Покупка** — интеграция с ЮKassa (через Telegram Payments).
 - ⏱ **Автоотмена неоплаченных заказов** — если пользователь не завершил оплату за 10 минут, заказ автоматически отменяется.
 - 🤖 **Автоматическая выдача доступа** — после оплаты бот мгновенно предоставляет доступ к материалам курса.
-- 📚 **Личный кабинет** — разделы "Мои курсы" и "История покупок" для удобного доступа к материалам и отслеживания платежей.
+- 📚 **Личный кабинет** — разделы "Мои курсы" и "История покупок".
 
 ### Для администраторов
 
 - 🔐 **Защищённая админ-панель** — доступ только для ID из списка администраторов.
 - ➕ **Управление курсами (CRUD)**
-  - Добавление новых курсов через пошаговый диалог
-  - Просмотр, редактирование и удаление существующих курсов
 - 👥 **Управление пользователями** — просмотр зарегистрированных пользователей с пагинацией.
-- 📊 **Статистика** — ключевые метрики: количество пользователей, покупок, общая сумма дохода.
-- 🛡️ **Надёжность** — встроенный механизм защиты от флуда (троттлинг).
+- 📊 **Статистика** — пользователи, покупки, доход.
+- 🛡️ **Троттлинг** — защита от флуда.
 
 ---
 
@@ -30,10 +28,10 @@
 
 - **Python 3.10+**
 - **Aiogram 3** — асинхронный фреймворк для Telegram Bot API
-- **AIOHTTP** — для работы с вебхуками
-- **asyncpg** — асинхронный драйвер для PostgreSQL
-- **ЮKassa через Telegram Payment API** — приём платежей
-- **Nginx, Gunicorn, systemd** — для развертывания на VPS
+- **AIOHTTP** — вебхуки
+- **asyncpg** — PostgreSQL
+- **ЮKassa через Telegram Payment API**
+- **Nginx, Gunicorn, systemd** — деплой на VPS
 
 ---
 
@@ -51,8 +49,7 @@ coursesbot/
 │
 ├── handlers/
 │   ├── user.py
-│   ├── admin.py
-│   └── payments.py
+│   └── admin.py
 │
 ├── keyboards/
 │   ├── user_kb.py
@@ -121,39 +118,10 @@ BOT_TOKEN="..."
 ADMIN_IDS="..."
 PAYMENT_PROVIDER_TOKEN="..."
 WEBHOOK_HOST="https://your-domain.com"
-DATABASE_URL=postgresql://coursesbot_user:your_password@localhost:5432/coursesbot_db
+DATABASE_URL="postgresql://user:password@localhost:5432/dbname"
 ```
 
----
-
-## 🖥️ Настройка PostgreSQL на VPS
-
-```bash
-sudo apt update
-sudo apt install postgresql postgresql-contrib -y
-sudo -i -u postgres
-psql
-```
-
-Внутри `psql` создаем базу и пользователя:
-
-```sql
-CREATE DATABASE coursesbot_db;
-CREATE USER coursesbot_user WITH ENCRYPTED PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE coursesbot_db TO coursesbot_user;
-\q
-exit
-```
-
-Перезапуск PostgreSQL:
-
-```bash
-sudo systemctl restart postgresql
-```
-
----
-
-## 5️⃣ Production на Render.com
+### 5️⃣ Production на Render.com
 
 1. Загрузите код на GitHub.
 2. Создайте Web Service, подключив репозиторий.
@@ -161,9 +129,13 @@ sudo systemctl restart postgresql
 
 ---
 
-## 6️⃣ Production на VPS (Ubuntu 22.04)
+## ☁️ Production на VPS (Ubuntu 22.04)
 
-### 6.1 Первоначальная настройка сервера
+Инструкция предполагает наличие домена, указывающего на IP вашего VPS.
+
+---
+
+### 🔹 1. Первоначальная настройка сервера
 
 ```bash
 ssh root@ВАШ_IP_АДРЕС
@@ -175,12 +147,45 @@ ufw enable
 ssh your_user@ВАШ_IP_АДРЕС
 ```
 
-### 6.2 Установка окружения и проекта
+---
+
+### 🔹 2. Установка PostgreSQL
 
 ```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install python3-pip python3-venv nginx git -y
+sudo apt update
+sudo apt install postgresql postgresql-contrib -y
+```
 
+Создаём пользователя и базу:
+
+```bash
+sudo -u postgres psql
+```
+
+Внутри PostgreSQL:
+
+```sql
+CREATE DATABASE coursesbot;
+CREATE USER botuser WITH PASSWORD 'strongpassword';
+ALTER ROLE botuser SET client_encoding TO 'utf8';
+ALTER ROLE botuser SET default_transaction_isolation TO 'read committed';
+ALTER ROLE botuser SET timezone TO 'UTC';
+GRANT ALL PRIVILEGES ON DATABASE coursesbot TO botuser;
+\q
+```
+
+Проверьте подключение:
+
+```bash
+psql -U botuser -d coursesbot -h 127.0.0.1 -W
+```
+
+---
+
+### 🔹 3. Загрузка и настройка бота
+
+```bash
+sudo apt install python3-pip python3-venv git -y
 git clone https://github.com/ваш_логин/ваш_репозиторий.git
 cd ваш_репозиторий
 python3 -m venv venv
@@ -189,16 +194,15 @@ pip install -r requirements.txt
 nano .env
 ```
 
-### 6.3 Настройка Nginx
+---
+
+### 🔹 4. Настройка Nginx
 
 ```bash
 sudo nano /etc/nginx/sites-available/your_bot
-sudo ln -s /etc/nginx/sites-available/your_bot /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
 ```
 
-Пример конфигурации `your_bot`:
+Конфигурация:
 
 ```
 server {
@@ -214,18 +218,23 @@ server {
 }
 ```
 
-### 6.4 Настройка systemd
+Активируем:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/your_bot /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+---
+
+### 🔹 5. Настройка systemd
 
 ```bash
 sudo nano /etc/systemd/system/your_bot.service
-sudo systemctl daemon-reload
-sudo systemctl enable your_bot.service
-sudo systemctl start your_bot.service
-sudo systemctl status your_bot.service
-sudo journalctl -u your_bot.service -f
 ```
 
-Пример сервиса:
+**Вариант без Gunicorn:**
 
 ```
 [Unit]
@@ -234,7 +243,6 @@ After=network.target
 
 [Service]
 User=your_user
-Group=www-data
 WorkingDirectory=/home/your_user/ваш_репозиторий
 ExecStart=/home/your_user/ваш_репозиторий/venv/bin/python bot.py
 Restart=always
@@ -243,7 +251,24 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-### 6.5 Настройка HTTPS (Certbot)
+**Вариант с Gunicorn (рекомендация):**
+
+```
+ExecStart=/home/your_user/ваш_репозиторий/venv/bin/gunicorn --workers 4 --worker-class aiohttp.GunicornWebWorker bot:app
+```
+
+Активируем:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable your_bot.service
+sudo systemctl start your_bot.service
+sudo systemctl status your_bot.service
+```
+
+---
+
+### 🔹 6. Настройка HTTPS (Certbot)
 
 ```bash
 sudo apt install certbot python3-certbot-nginx -y
@@ -258,20 +283,19 @@ sudo systemctl restart your_bot.service
 
 ### Пользовательский интерфейс
 
-- `/start` — регистрация и начало работы
-- Меню кнопок — навигация по курсам, просмотр покупок и истории
+- `/start` — регистрация
+- Меню — навигация по курсам, покупки, история
 
 ### Админ-панель
 
-- `/admin` — доступ только для ADMIN_IDS
-- Кнопки — управление курсами, пользователями, статистикой
+- `/admin` — управление курсами, пользователями, статистикой
 
 ---
 
 ## 💖 Донаты
 
-Если вам понравился бот, вы можете отправить донат на :
+Если вам понравился проект:
 
-#### BTC: bc1qa3c5xdc6a3n2l3w0sq3vysustczpmlvhdwr8vc
+- **BTC:** `bc1qa3c5xdc6a3n2l3w0sq3vysustczpmlvhdwr8vc`
 
 Спасибо за вашу поддержку! 🙏

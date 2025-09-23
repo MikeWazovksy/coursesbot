@@ -13,7 +13,6 @@ class AddCourse(StatesGroup):
 
 
 class EditCourse(StatesGroup):
-    """Состояния для редактирования курса."""
 
     choosing_field = State()  # Ожидание выбора поля
     entering_new_value = State()  # Ожидание нового значения

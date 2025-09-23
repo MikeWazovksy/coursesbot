@@ -1,4 +1,6 @@
 import logging
+import html
+import asyncio
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
 from aiogram.types import (
@@ -6,11 +8,9 @@ from aiogram.types import (
     CallbackQuery,
     LabeledPrice,
     PreCheckoutQuery,
-    SuccessfulPayment,
+    SuccessfulPayment
 )
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from datetime import datetime, timedelta
-import asyncio
+from aiogram.utils.markdown import hbold, hlink
 
 from keyboards.user_kb import (
     main_menu_kb,
@@ -27,8 +27,6 @@ from config import PAYMENT_PROVIDER_TOKEN
 user_router = Router()
 
 
-# ------------------------------------------------------------------------------------
-# Приветствие , можно изменить текст , если надо
 @user_router.message(CommandStart())
 async def handle_start(message: Message):
     user = message.from_user
@@ -40,9 +38,6 @@ async def handle_start(message: Message):
         reply_markup=main_menu_kb,
     )
 
-
-# ------------------------------------------------------------------------------------
-# Доступность курсов
 @user_router.message(F.text == "🎓 Доступные курсы")
 async def handle_catalog(message: Message):
     courses = await courses_db.get_all_courses()
@@ -59,22 +54,24 @@ async def show_course_details(
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(course_id)
     if course:
-        _, title, _, full_desc, price, _ = course
-        text = f"🎓 **{title}**\n\n{full_desc}\n\n💰 **Цена:** {price} руб."
+        title = html.escape(course.get('title', ''))
+        full_desc = html.escape(course.get('full_description', ''))
+        price = course.get('price', 0)
+        text = (f"🎓 {hbold(title)}\n\n"
+                f"{full_desc}\n\n"
+                f"💰 {hbold('Цена:')} {price} руб.")
         await callback.message.edit_text(
-            text, reply_markup=get_course_details_kb(course_id), parse_mode="Markdown"
+            text,
+            reply_markup=get_course_details_kb(course_id)
         )
     else:
         await callback.answer("Курс не найден!", show_alert=True)
     await callback.answer()
 
-
-# ------------------------------------------------------------------------------------
-# Проверка платежа , по истечению 10 минут он становится не активный и удаляется
 async def expire_invoice_message(
     bot: Bot, chat_id: int, message_id: int, payment_id: int
 ):
-
+    """Фоновая задача, которая удаляет инвойс и отменяет платеж через 10 минут."""
     await asyncio.sleep(600)
 
     payment_info = await payments_db.get_payment_info(payment_id)
@@ -82,29 +79,21 @@ async def expire_invoice_message(
     if payment_info and payment_info["status"] == "pending":
         try:
             await payments_db.update_payment_status(payment_id, "canceled")
-
             await bot.delete_message(chat_id=chat_id, message_id=message_id)
-
             await bot.send_message(
                 chat_id=chat_id,
-                text="❌ **Время для оплаты истекло!**\n\nДля покупки курса создайте новый счет.",
-                parse_mode="Markdown",
+                text=f"❌ {hbold('Время для оплаты истекло!')}\n\nДля покупки курса, пожалуйста, создайте новый счет.",
             )
         except Exception as e:
-            logging.error(f"Не удалось удалить или отправить сообщение: {e}")
+            logging.error(f"Не удалось обработать истекший счет (payment_id: {payment_id}): {e}")
 
-
-# ------------------------------------------------------------------------------------
-# Создание счета для оплаты
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "buy"))
 async def buy_course_handler(
     callback: CallbackQuery, callback_data: CourseCallbackFactory, bot: Bot
 ):
     await callback.answer()
-
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(course_id)
-
     if not course:
         await callback.message.answer("Курс не найден!")
         return
@@ -129,7 +118,6 @@ async def buy_course_handler(
                 LabeledPrice(label=f"Покупка курса: {title}", amount=int(price * 100))
             ],
         )
-
         asyncio.create_task(
             expire_invoice_message(
                 bot, invoice_message.chat.id, invoice_message.message_id, payment_id
@@ -139,9 +127,6 @@ async def buy_course_handler(
         await callback.message.answer("Произошла ошибка при отправке счета.")
         logging.error(f"Ошибка при отправке инвойса: {e}")
 
-
-# ------------------------------------------------------------------------------------
-# Отмена платежа
 @user_router.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
     payload = pre_checkout_query.invoice_payload
@@ -155,7 +140,7 @@ async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
 
     payment_info = await payments_db.get_payment_info(payment_id)
 
-    if not payment_info or payment_info["status"] == "canceled":
+    if not payment_info or payment_info["status"] != "pending":
         await bot.answer_pre_checkout_query(
             pre_checkout_query.id,
             ok=False,
@@ -165,29 +150,19 @@ async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
 
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
-
-# ------------------------------------------------------------------------------------
-# Успешный платеж
 @user_router.message(F.successful_payment)
 async def process_successful_payment(message: Message):
     payment_id = int(message.successful_payment.invoice_payload.split("_")[1])
-
     payment_info = await payments_db.get_payment_info(payment_id)
     if not payment_info:
-        logging.error(
-            f"Не найдена информация о платеже {payment_id} после успешной оплаты."
-        )
+        logging.error(f"Не найдена информация о платеже {payment_id} после успешной оплаты.")
         return
 
     user_id = payment_info["user_id"]
     course_id = payment_info["course_id"]
-
     await payments_db.update_payment_status(payment_id, "succeeded")
     await user_courses_db.add_user_course(user_id, course_id)
-
-    await message.answer(
-        "✅ Оплата прошла успешно! Вам открыт доступ к курсу. Вы можете найти его в разделе '📚 Мои курсы'."
-    )
+    await message.answer("✅ Оплата прошла успешно! Вам открыт доступ к курсу.")
     logging.info(f"Платеж {payment_id} успешно завершен для пользователя {user_id}.")
 
 
@@ -199,51 +174,39 @@ async def back_to_courses_list(callback: CallbackQuery):
     )
     await callback.answer()
 
-
-# ------------------------------------------------------------------------------------
-# Курсы пользователя
 @user_router.message(F.text == "📚 Мои курсы")
 async def handle_my_courses(message: Message):
     user_id = message.from_user.id
     my_courses = await user_courses_db.get_user_courses_with_details(user_id)
-
     if not my_courses:
         await message.answer("У вас пока нет купленных курсов.")
         return
 
-    response_text = "📚 **Ваши курсы:**\n\n"
+    response_text = f"📚 {hbold('Ваши курсы:')}\n\n"
     for course in my_courses:
-        response_text += f"🎓 **{course['title']}**\n🔗 Ссылка на материалы курса: {course['materials_link']}\n\n"
+        title = html.escape(course['title'])
+        link = hlink('Ссылка на материалы', course['materials_link'])
+        response_text += f"🎓 {hbold(title)}\n🔗 {link}\n\n"
 
-    await message.answer(
-        response_text, parse_mode="Markdown", disable_web_page_preview=True
-    )
+    await message.answer(response_text, disable_web_page_preview=True)
 
-
-# ------------------------------------------------------------------------------------
-# История покупок
 @user_router.message(F.text == "🧾 История покупок")
 async def handle_purchase_history(message: Message):
     user_id = message.from_user.id
     history = await payments_db.get_user_payment_history(user_id)
-
     if not history:
         await message.answer("Ваша история покупок пуста.")
         return
 
-    response_text = "🧾 **История ваших покупок:**\n\n"
-    status_map = {
-        "succeeded": "✅ Успешно",
-        "pending": "⏳ В ожидании",
-        "canceled": "❌ Отменен",
-    }
+    response_text = f"🧾 {hbold('История ваших покупок:')}\n\n"
+    status_map = {"succeeded": "✅ Успешно", "pending": "⏳ В ожидании", "canceled": "❌ Отменен"}
     for payment in history:
         status_emoji = status_map.get(payment["status"], "❓")
+        title = html.escape(payment['title'])
         response_text += (
-            f"**Курс:** {payment['title']}\n"
-            f"**Сумма:** {payment['amount']} руб.\n"
-            f"**Дата:** {payment['payment_date']}\n"
-            f"**Статус:** {status_emoji}\n\n"
+            f"{hbold('Курс:')} {title}\n"
+            f"{hbold('Сумма:')} {payment['amount']} руб.\n"
+            f"{hbold('Дата:')} {payment['payment_date']}\n"
+            f"{hbold('Статус:')} {status_emoji}\n\n"
         )
-
-    await message.answer(response_text, parse_mode="Markdown")
+    await message.answer(response_text)
