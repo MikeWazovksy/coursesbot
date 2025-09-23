@@ -1,4 +1,3 @@
-# bot.py (исправленная версия)
 import os
 import logging
 import asyncio
@@ -6,7 +5,7 @@ from aiogram.enums import ParseMode
 from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
 from config import BOT_TOKEN, WEBHOOK_HOST
 from database import initialize_db, create_pool, close_pool
@@ -23,7 +22,6 @@ APP_PORT = int(os.environ.get("PORT", 8080))
 
 
 async def on_startup(app: web.Application):
-    """Действия при запуске приложения."""
     bot: Bot = app["bot"]
     pool = app["pool"]
 
@@ -37,7 +35,6 @@ async def on_startup(app: web.Application):
 
 
 async def on_shutdown(app: web.Application):
-    """Действия при остановке приложения."""
     logging.warning("Бот останавливается...")
     pool = app["pool"]
     await close_pool(pool)
@@ -45,7 +42,6 @@ async def on_shutdown(app: web.Application):
 
 
 async def main():
-    """Основная функция для запуска бота."""
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
     )
@@ -76,8 +72,18 @@ async def main():
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
 
-    logging.info("Starting web server...")
-    web.run_app(app, host=APP_HOST, port=APP_PORT)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host=APP_HOST, port=APP_PORT)
+
+    logging.info("Starting web server... Bot is running!")
+    await site.start()
+
+    try:
+        await asyncio.Event().wait()
+    finally:
+        await runner.cleanup()
+        logging.info("Web server stopped.")
 
 
 if __name__ == "__main__":
