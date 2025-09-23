@@ -20,7 +20,6 @@ from middlewares.throttling import ThrottlingMiddleware
 # Настройки
 TELEGRAM_WEBHOOK_PATH = "/webhook"
 TELEGRAM_WEBHOOK_URL = f"{WEBHOOK_HOST}{TELEGRAM_WEBHOOK_PATH}"
-YOOKASSA_WEBHOOK_PATH = "/webhook/yookassa"
 APP_HOST = "0.0.0.0"
 APP_PORT = int(os.environ.get("PORT", 8080))
 

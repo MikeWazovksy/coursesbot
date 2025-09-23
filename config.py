@@ -13,7 +13,7 @@ ADMIN_IDS = [
 
 
 # ------------------------------------------------------------------------------------
-# Telegramm Payments Юкасса
+# Telegram Payments Юкасса
 PAYMENT_PROVIDER_TOKEN = os.getenv("PAYMENT_PROVIDER_TOKEN")
 
 
@@ -23,5 +23,11 @@ WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
 
 
 # ------------------------------------------------------------------------------------
-# Настройки базы данных
-DB_NAME = "database.db"
+# Настройки базы данных (PostgreSQL)
+DB_CONFIG = {
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD", ""),
+    "database": os.getenv("DB_NAME", "postgres"),
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": int(os.getenv("DB_PORT", 5432))
+}

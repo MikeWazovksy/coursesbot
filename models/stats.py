@@ -1,32 +1,41 @@
-import aiosqlite
-from config import DB_NAME
+import asyncpg
+from config import DB_CONFIG
 from typing import Dict
+
+
+# ------------------------------------------------------------------------------------
+# Подключение к базе
+async def get_connection():
+    return await asyncpg.connect(**DB_CONFIG)
 
 
 # ------------------------------------------------------------------------------------
 # Модель статистики
 async def get_main_stats() -> Dict:
-    async with aiosqlite.connect(DB_NAME) as db:
-        users_cursor = await db.execute("SELECT COUNT(*) FROM users")
-        users_count = (await users_cursor.fetchone())[0]
+    conn = await get_connection()
 
-        purchases_cursor = await db.execute("SELECT COUNT(*) FROM user_courses")
-        purchases_count = (await purchases_cursor.fetchone())[0]
+    # Кол-во пользователей
+    users_count = await conn.fetchval("SELECT COUNT(*) FROM users")
 
-        payments_cursor = await db.execute(
-            "SELECT COUNT(*), SUM(amount) FROM payments WHERE status = 'succeeded'"
-        )
-        payments_data = await payments_cursor.fetchone()
-        successful_payments_count = payments_data[0] or 0
-        total_revenue = payments_data[1] or 0.0
+    # Кол-во покупок
+    purchases_count = await conn.fetchval("SELECT COUNT(*) FROM user_courses")
 
-        courses_cursor = await db.execute("SELECT COUNT(*) FROM courses")
-        active_courses_count = (await courses_cursor.fetchone())[0]
+    # Кол-во успешных платежей и общая выручка
+    payments_row = await conn.fetchrow(
+        "SELECT COUNT(*) AS count, SUM(amount) AS total FROM payments WHERE status = 'succeeded'"
+    )
+    successful_payments_count = payments_row['count'] or 0
+    total_revenue = float(payments_row['total'] or 0.0)
 
-        return {
-            "users_count": users_count,
-            "purchases_count": purchases_count,
-            "successful_payments_count": successful_payments_count,
-            "total_revenue": total_revenue,
-            "active_courses_count": active_courses_count,
-        }
+    # Кол-во активных курсов
+    active_courses_count = await conn.fetchval("SELECT COUNT(*) FROM courses")
+
+    await conn.close()
+
+    return {
+        "users_count": users_count,
+        "purchases_count": purchases_count,
+        "successful_payments_count": successful_payments_count,
+        "total_revenue": total_revenue,
+        "active_courses_count": active_courses_count,
+    }

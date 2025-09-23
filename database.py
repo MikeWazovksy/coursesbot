@@ -1,25 +1,43 @@
-import aiosqlite
+import asyncpg
 import logging
-from config import DB_NAME
+from config import DB_CONFIG
+import asyncio
 
 
 # ------------------------------------------------------------------------------------
 # Установка базы данных
 async def initialize_db():
     try:
-        async with aiosqlite.connect(DB_NAME) as db:
-            with open("migrations/001_init.sql", "r", encoding="utf-8") as f:
-                sql_script = f.read()
-            await db.executescript(sql_script)
+        conn = await asyncpg.connect(**DB_CONFIG)
 
-            cursor = await db.execute("PRAGMA table_info(payments)")
-            columns = [row[1] for row in await cursor.fetchall()]
+        # Чтение SQL-скрипта
+        with open("migrations/001_init.sql", "r", encoding="utf-8") as f:
+            sql_script = f.read()
 
-            if "message_id" not in columns:
-                await db.execute("ALTER TABLE payments ADD COLUMN message_id INTEGER")
+        # Разбиваем скрипт на отдельные команды
+        # asyncpg не поддерживает executescript, поэтому выполняем по одной команде
+        statements = [stmt.strip() for stmt in sql_script.split(";") if stmt.strip()]
+        for stmt in statements:
+            await conn.execute(stmt)
 
-            await db.commit()
-            logging.info("База данных успешно инициализирована и проверена.")
+        # Проверка, есть ли колонка message_id в таблице payments
+        column_exists = await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_name='payments' AND column_name='message_id'
+            )
+            """
+        )
+
+        if not column_exists:
+            await conn.execute("ALTER TABLE payments ADD COLUMN message_id INTEGER")
+
+        await conn.close()
+        logging.info("База данных успешно инициализирована и проверена.")
 
     except Exception as e:
         logging.error(f"Ошибка при инициализации БД: {e}")
+
+
