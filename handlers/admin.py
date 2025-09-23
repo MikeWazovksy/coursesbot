@@ -27,6 +27,8 @@ from models import stats as stats_db
 admin_router = Router()
 
 
+# ------------------------------------------------------------------------------------
+# Приветствие админа
 @admin_router.message(Command("admin"), IsAdmin())
 async def admin_panel(message: Message):
     await message.answer(
@@ -34,6 +36,7 @@ async def admin_panel(message: Message):
     )
 
 
+# ------------------------------------------------------------------------------------
 # Обработка отмены
 @admin_router.message(F.text == "❌ Отмена")
 async def cancel_action(message: Message, state: FSMContext):
@@ -45,6 +48,7 @@ async def cancel_action(message: Message, state: FSMContext):
     await message.answer("Действие отменено.", reply_markup=admin_main_kb)
 
 
+# ------------------------------------------------------------------------------------
 # Добавление курса
 @admin_router.message(F.text == "➕ Добавить курс", IsAdmin())
 async def start_add_course(message: Message, state: FSMContext):
@@ -52,6 +56,7 @@ async def start_add_course(message: Message, state: FSMContext):
     await message.answer("Введите название нового курса:", reply_markup=cancel_kb)
 
 
+# ------------------------------------------------------------------------------------
 # Краткое описание
 @admin_router.message(AddCourse.title)
 async def process_title(message: Message, state: FSMContext):
@@ -60,6 +65,7 @@ async def process_title(message: Message, state: FSMContext):
     await message.answer("Отлично! Теперь введите краткое описание курса:")
 
 
+# ------------------------------------------------------------------------------------
 # Полное описание
 @admin_router.message(AddCourse.short_description)
 async def process_short_description(message: Message, state: FSMContext):
@@ -70,6 +76,7 @@ async def process_short_description(message: Message, state: FSMContext):
     )
 
 
+# ------------------------------------------------------------------------------------
 # Получаем ссылку
 @admin_router.message(AddCourse.full_description)
 async def process_full_description(message: Message, state: FSMContext):
@@ -79,6 +86,7 @@ async def process_full_description(message: Message, state: FSMContext):
     await message.answer("Отлично! Теперь отправьте ссылку на материалы:")
 
 
+# ------------------------------------------------------------------------------------
 # Получаем цену
 @admin_router.message(AddCourse.materials_link)
 async def process_materials_link(message: Message, state: FSMContext):
@@ -89,6 +97,7 @@ async def process_materials_link(message: Message, state: FSMContext):
     )
 
 
+# ------------------------------------------------------------------------------------
 # Сохраняем
 @admin_router.message(AddCourse.price)
 async def process_price(message: Message, state: FSMContext):
@@ -120,6 +129,7 @@ async def process_price(message: Message, state: FSMContext):
     )
 
 
+# ------------------------------------------------------------------------------------
 # Список курсов
 @admin_router.message(F.text == "📋 Список курсов", IsAdmin())
 async def list_courses(message: Message):
@@ -133,7 +143,8 @@ async def list_courses(message: Message):
     )
 
 
-# # Просматривает , редактируем или удаляем курс
+# ------------------------------------------------------------------------------------
+# Просматривает , редактируем или удаляем курс
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "view"))
 async def view_course(callback: CallbackQuery, callback_data: AdminCourseCallback):
     course_id = callback_data.course_id
@@ -164,6 +175,7 @@ async def view_course(callback: CallbackQuery, callback_data: AdminCourseCallbac
     await callback.answer()
 
 
+# ------------------------------------------------------------------------------------
 # Удаление курса
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "delete"))
 async def confirm_delete_course(
@@ -176,6 +188,7 @@ async def confirm_delete_course(
     await callback.answer()
 
 
+# ------------------------------------------------------------------------------------
 # Начинаем редактирование
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "edit"))
 async def start_edit_course(
@@ -192,42 +205,48 @@ async def start_edit_course(
     await callback.answer()
 
 
+# ------------------------------------------------------------------------------------
+# Выбор курса для управления
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "back_to_list"))
 async def back_to_course_list_admin(callback: CallbackQuery):
 
     all_courses = await courses_db.get_all_courses()
 
     await callback.message.edit_text(
-        "Выберите курс для управления:",
-        reply_markup=get_admin_courses_kb(all_courses)
+        "Выберите курс для редактирования:",
+        reply_markup=get_admin_courses_kb(all_courses),
     )
     await callback.answer()
 
 
+# ------------------------------------------------------------------------------------
 # Возвращаемся в главное меню
-@admin_router.callback_query(AdminCourseCallback.filter(F.action == "back_to_main_menu"))
+@admin_router.callback_query(
+    AdminCourseCallback.filter(F.action == "back_to_main_menu")
+)
 async def back_to_main_menu_admin(callback: CallbackQuery):
 
     await callback.message.delete()
     await callback.message.answer(
-        "Вы вернулись в главное меню.",
-        reply_markup=admin_main_kb
+        "Вы вернулись в главное меню.", reply_markup=admin_main_kb
     )
     await callback.answer()
 
 
 # Обробатываем поля редактирования
 @admin_router.callback_query(EditCourseCallback.filter(), EditCourse.choosing_field)
-async def choose_field_to_edit(callback: CallbackQuery, callback_data: EditCourseCallback, state: FSMContext):
+async def choose_field_to_edit(
+    callback: CallbackQuery, callback_data: EditCourseCallback, state: FSMContext
+):
     await callback.answer()
 
     field = callback_data.field
     field_names = {
-        'title': 'новое название',
-        'short_description': 'новое краткое описание',
-        'full_description': 'новое полное описание',
-        'materials_link': 'новую ссылку на материалы',
-        'price': 'новую цену'
+        "title": "новое название",
+        "short_description": "новое краткое описание",
+        "full_description": "новое полное описание",
+        "materials_link": "новую ссылку на материалы",
+        "price": "новую цену",
     }
 
     await state.update_data(field_to_edit=field)
@@ -236,11 +255,11 @@ async def choose_field_to_edit(callback: CallbackQuery, callback_data: EditCours
     await callback.message.delete()
 
     await callback.message.answer(
-        f"Введите {field_names.get(field, 'новое значение')}:",
-        reply_markup=cancel_kb
+        f"Введите {field_names.get(field, 'новое значение')}:", reply_markup=cancel_kb
     )
 
 
+# ------------------------------------------------------------------------------------
 # Новое значение
 @admin_router.message(EditCourse.entering_new_value)
 async def process_new_value(message: Message, state: FSMContext):
@@ -281,16 +300,15 @@ async def process_new_value(message: Message, state: FSMContext):
     await state.clear()
 
     display_field_names = {
-        'title': 'Название',
-        'short_description': 'Краткое описание',
-        'full_description': 'Полное описание',
-        'materials_link': 'Ссылка на материалы',
-        'price': 'Цена'
+        "title": "Название",
+        "short_description": "Краткое описание",
+        "full_description": "Полное описание",
+        "materials_link": "Ссылка на материалы",
+        "price": "Цена",
     }
 
     display_name = display_field_names.get(field, field)
     text = f"✅ Поле {hbold(display_name)} для курса {hbold('ID ' + str(course_id))} было успешно обновлено!"
-
 
     await view_course_after_edit(message, course_id)
 
@@ -319,6 +337,7 @@ async def view_course_after_edit(message: Message, course_id: int):
     )
 
 
+# ------------------------------------------------------------------------------------
 # Статистика
 @admin_router.message(F.text == "📊 Статистика", IsAdmin())
 async def show_stats(message: Message):
@@ -335,7 +354,8 @@ async def show_stats(message: Message):
     await message.answer(text, parse_mode="Markdown")
 
 
-# Кол-во пользователей на странице
+# ------------------------------------------------------------------------------------
+# Кол-во пользователей на странице , для удобства отображения , Если пользователей будет много
 USERS_PER_PAGE = 5
 
 
@@ -346,10 +366,10 @@ async def format_users_list(users: List[Dict]) -> str:
     text = f"{hbold('👥 Список пользователей:')}\n\n"
     for user in users:
         # Экранируем все данные от пользователя
-        user_id = user['user_id']
-        full_name = html.escape(str(user['full_name'] or "Без имени"))
-        username = html.escape(str(user['username'] or "Без юзернейма"))
-        courses_purchased = user['courses_purchased']
+        user_id = user["user_id"]
+        full_name = html.escape(str(user["full_name"] or "Без имени"))
+        username = html.escape(str(user["username"] or "Без юзернейма"))
+        courses_purchased = user["courses_purchased"]
 
         text += (
             f"👤 {hbold('ID:')} {hcode(user_id)}\n"
@@ -361,6 +381,7 @@ async def format_users_list(users: List[Dict]) -> str:
     return text
 
 
+# ------------------------------------------------------------------------------------
 # Список пользователей
 @admin_router.message(F.text == "👥 Список юзеров", IsAdmin())
 async def list_users(message: Message):
@@ -377,6 +398,8 @@ async def list_users(message: Message):
         parse_mode="HTML",
     )
 
+
+# ------------------------------------------------------------------------------------
 # Обработка нажатия кнопок
 @admin_router.callback_query(UserPaginationCallback.filter())
 async def paginate_users_list(

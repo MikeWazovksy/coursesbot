@@ -3,6 +3,8 @@ from config import DB_NAME
 from typing import List, Dict
 
 
+# ------------------------------------------------------------------------------------
+# Модель юзера
 async def add_user(user_id: int, username: str, full_name: str):
 
     async with aiosqlite.connect(DB_NAME) as db:

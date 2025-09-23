@@ -3,10 +3,11 @@ from config import DB_NAME
 from typing import Optional, List, Dict
 
 
+# ------------------------------------------------------------------------------------
+# Модель оплаты
 async def create_pending_payment(
     user_id: int, course_id: int, amount: float
 ) -> Optional[int]:
-    # Статус платежа
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
             """INSERT INTO payments (user_id, course_id, amount, status)
@@ -25,9 +26,7 @@ async def update_payment_status(payment_id: int, status: str):
         await db.commit()
 
 
-# Отмена платежа
 async def update_payment_message_id(payment_id: int, message_id: int):
-    """Сохраняет ID сообщения, в котором отправлена ссылка на оплату."""
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             "UPDATE payments SET message_id = ? WHERE id = ?", (message_id, payment_id)
@@ -39,15 +38,13 @@ async def get_payment_info(payment_id: int) -> Optional[Dict]:
     async with aiosqlite.connect(DB_NAME) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT user_id, course_id, message_id, status FROM payments WHERE id = ?", (payment_id,)
+            "SELECT user_id, course_id, message_id, status FROM payments WHERE id = ?",
+            (payment_id,),
         )
         return await cursor.fetchone()
 
 
 async def get_user_payment_history(user_id: int) -> List[Dict]:
-
-    # История покупок пользователя
-
     async with aiosqlite.connect(DB_NAME) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(

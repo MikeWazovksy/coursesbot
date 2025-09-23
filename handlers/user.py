@@ -27,6 +27,8 @@ from config import PAYMENT_PROVIDER_TOKEN
 user_router = Router()
 
 
+# ------------------------------------------------------------------------------------
+# Приветствие , можно изменить текст , если надо
 @user_router.message(CommandStart())
 async def handle_start(message: Message):
     user = message.from_user
@@ -39,6 +41,8 @@ async def handle_start(message: Message):
     )
 
 
+# ------------------------------------------------------------------------------------
+# Доступность курсов
 @user_router.message(F.text == "🎓 Доступные курсы")
 async def handle_catalog(message: Message):
     courses = await courses_db.get_all_courses()
@@ -65,6 +69,8 @@ async def show_course_details(
     await callback.answer()
 
 
+# ------------------------------------------------------------------------------------
+# Проверка платежа , по истечению 10 минут он становится не активный и удаляется
 async def expire_invoice_message(
     bot: Bot, chat_id: int, message_id: int, payment_id: int
 ):
@@ -88,6 +94,8 @@ async def expire_invoice_message(
             logging.error(f"Не удалось удалить или отправить сообщение: {e}")
 
 
+# ------------------------------------------------------------------------------------
+# Создание счета для оплаты
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "buy"))
 async def buy_course_handler(
     callback: CallbackQuery, callback_data: CourseCallbackFactory, bot: Bot
@@ -132,6 +140,8 @@ async def buy_course_handler(
         logging.error(f"Ошибка при отправке инвойса: {e}")
 
 
+# ------------------------------------------------------------------------------------
+# Отмена платежа
 @user_router.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
     payload = pre_checkout_query.invoice_payload
@@ -156,6 +166,8 @@ async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 
+# ------------------------------------------------------------------------------------
+# Успешный платеж
 @user_router.message(F.successful_payment)
 async def process_successful_payment(message: Message):
     payment_id = int(message.successful_payment.invoice_payload.split("_")[1])
@@ -188,6 +200,8 @@ async def back_to_courses_list(callback: CallbackQuery):
     await callback.answer()
 
 
+# ------------------------------------------------------------------------------------
+# Курсы пользователя
 @user_router.message(F.text == "📚 Мои курсы")
 async def handle_my_courses(message: Message):
     user_id = message.from_user.id
@@ -206,6 +220,8 @@ async def handle_my_courses(message: Message):
     )
 
 
+# ------------------------------------------------------------------------------------
+# История покупок
 @user_router.message(F.text == "🧾 История покупок")
 async def handle_purchase_history(message: Message):
     user_id = message.from_user.id

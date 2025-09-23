@@ -3,6 +3,8 @@ from config import DB_NAME
 from typing import List, Tuple, Optional
 
 
+# ------------------------------------------------------------------------------------
+# Модель курсов
 async def get_all_courses() -> List[Tuple]:
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute("SELECT * FROM courses")
@@ -15,12 +17,14 @@ async def get_course_by_id(course_id: int) -> Optional[Tuple]:
         return await cursor.fetchone()
 
 
-async def add_course(title: str, short_desc: str, full_desc: str, link: str, price: float):
+async def add_course(
+    title: str, short_desc: str, full_desc: str, link: str, price: float
+):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             """INSERT INTO courses (title, short_description, full_description, materials_link, price)
             VALUES (?, ?, ?, ?, ?)""",
-            (title, short_desc, full_desc, link, price)
+            (title, short_desc, full_desc, link, price),
         )
         await db.commit()
 

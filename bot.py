@@ -5,15 +5,18 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
+# ------------------------------------------------------------------------------------
 # Импорты конфигурации и базы
 from config import BOT_TOKEN, WEBHOOK_HOST
 from database import initialize_db
 
+# ------------------------------------------------------------------------------------
 # Импортируем роутеры
 from handlers.user import user_router
 from handlers.admin import admin_router
 from middlewares.throttling import ThrottlingMiddleware
 
+# ------------------------------------------------------------------------------------
 # Настройки
 TELEGRAM_WEBHOOK_PATH = "/webhook"
 TELEGRAM_WEBHOOK_URL = f"{WEBHOOK_HOST}{TELEGRAM_WEBHOOK_PATH}"
@@ -25,9 +28,9 @@ APP_PORT = int(os.environ.get("PORT", 8080))
 async def on_startup(bot: Bot):
     await initialize_db()
     await bot.set_webhook(
-    TELEGRAM_WEBHOOK_URL,
-    allowed_updates=["message", "callback_query", "pre_checkout_query"]
-)
+        TELEGRAM_WEBHOOK_URL,
+        allowed_updates=["message", "callback_query", "pre_checkout_query"],
+    )
     logging.info(f"Webhook set to {TELEGRAM_WEBHOOK_URL}")
 
 

@@ -2,7 +2,9 @@ import aiosqlite
 import logging
 from config import DB_NAME
 
-# установка базы данных
+
+# ------------------------------------------------------------------------------------
+# Установка базы данных
 async def initialize_db():
     try:
         async with aiosqlite.connect(DB_NAME) as db:
@@ -13,10 +15,8 @@ async def initialize_db():
             cursor = await db.execute("PRAGMA table_info(payments)")
             columns = [row[1] for row in await cursor.fetchall()]
 
-            if 'message_id' not in columns:
-                logging.warning("Обнаружена старая структура БД. Добавляем колонку 'message_id'...")
+            if "message_id" not in columns:
                 await db.execute("ALTER TABLE payments ADD COLUMN message_id INTEGER")
-                logging.info("Колонка 'message_id' успешно добавлена.")
 
             await db.commit()
             logging.info("База данных успешно инициализирована и проверена.")

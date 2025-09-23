@@ -5,6 +5,8 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData
 
+
+# ------------------------------------------------------------------------------------
 # Главное меню
 main_menu_kb = ReplyKeyboardMarkup(
     keyboard=[
@@ -18,12 +20,14 @@ main_menu_kb = ReplyKeyboardMarkup(
 )
 
 
+# ------------------------------------------------------------------------------------
 # Колбэки курсов
 class CourseCallbackFactory(CallbackData, prefix="course"):
     action: str
     course_id: int
 
 
+# ------------------------------------------------------------------------------------
 # Клавиатуры для курсов
 def get_courses_list_kb(courses: list):
     builder = InlineKeyboardBuilder()
@@ -36,6 +40,8 @@ def get_courses_list_kb(courses: list):
     return builder.as_markup()
 
 
+# ------------------------------------------------------------------------------------
+# Кнопка купить курс и вернутся назад
 def get_course_details_kb(course_id: int):
     builder = InlineKeyboardBuilder()
     builder.button(
@@ -44,9 +50,7 @@ def get_course_details_kb(course_id: int):
     )
     builder.button(
         text="⬅️ Назад к списку",
-        callback_data=CourseCallbackFactory(
-            action="back_to_list", course_id=-1
-        ),
+        callback_data=CourseCallbackFactory(action="back_to_list", course_id=-1),
     )
     builder.adjust(1)
     return builder.as_markup()

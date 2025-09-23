@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS payments (
     course_id INTEGER NOT NULL,
     amount REAL NOT NULL,
     status TEXT NOT NULL,
-    message_id INTEGER, -- <-- ДОБАВЬТЕ ЭТУ СТРОКУ
+    message_id INTEGER,
     payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (course_id) REFERENCES courses(id)

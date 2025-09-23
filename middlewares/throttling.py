@@ -3,8 +3,10 @@ from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery
 from cachetools import TTLCache
 
+
+# ------------------------------------------------------------------------------------
+# Защита от частого нажатия на кнопки , чтоб не грузить бота , 1 раз в секунду , если чаще то бот не будет отвечать
 class ThrottlingMiddleware(BaseMiddleware):
-    # защита о спама , нажатия на кнопки
     def __init__(self, time_limit: int = 1):
         self.cache = TTLCache(maxsize=10_000, ttl=time_limit)
 
@@ -12,7 +14,7 @@ class ThrottlingMiddleware(BaseMiddleware):
         self,
         handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
         event: Message | CallbackQuery,
-        data: Dict[str, Any]
+        data: Dict[str, Any],
     ) -> Any:
         if isinstance(event, Message):
             user_id = event.from_user.id

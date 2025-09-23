@@ -1,7 +1,13 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData
 
+# ------------------------------------------------------------------------------------
 # Клавиатура админа
 admin_main_kb = ReplyKeyboardMarkup(
     keyboard=[
@@ -14,19 +20,23 @@ admin_main_kb = ReplyKeyboardMarkup(
     resize_keyboard=True,
 )
 
+
+# ------------------------------------------------------------------------------------
 # Клавиатура отмены действий
 cancel_kb = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="❌ Отмена")]], resize_keyboard=True
 )
 
 
-# Управление курсами
+# ------------------------------------------------------------------------------------
+# Колбэк курсов
 class AdminCourseCallback(CallbackData, prefix="admin_course"):
     action: str
     course_id: int
 
 
-# Инлайн-клавиатуры
+# ------------------------------------------------------------------------------------
+# Вернуться в меню
 def get_admin_courses_kb(courses: list):
     builder = InlineKeyboardBuilder()
     for course in courses:
@@ -37,13 +47,15 @@ def get_admin_courses_kb(courses: list):
 
     builder.button(
         text="⬅️ Назад в меню",
-        callback_data=AdminCourseCallback(action="back_to_main_menu", course_id=0)
+        callback_data=AdminCourseCallback(action="back_to_main_menu", course_id=0),
     )
 
     builder.adjust(1)
     return builder.as_markup()
 
 
+# ------------------------------------------------------------------------------------
+# Кнопки редактирования и возврата назад к списку курсов
 def get_course_manage_kb(course_id: int):
     """Генерирует меню управления для выбранного курса."""
     builder = InlineKeyboardBuilder()
@@ -57,18 +69,20 @@ def get_course_manage_kb(course_id: int):
     )
     builder.button(
         text="⬅️ Назад к списку",
-        callback_data=AdminCourseCallback(action="back_to_list", course_id=0)
+        callback_data=AdminCourseCallback(action="back_to_list", course_id=0),
     )
     builder.adjust(2, 1)
     return builder.as_markup()
 
 
-# Редактирование курсов
+# ------------------------------------------------------------------------------------
+# Колбэк юзеров
 class EditCourseCallback(CallbackData, prefix="edit_course_field"):
     course_id: int
     field: str
 
 
+# ------------------------------------------------------------------------------------
 # Клавитаура выбора поля
 def get_edit_field_kb(course_id: int):
     builder = InlineKeyboardBuilder()
@@ -93,12 +107,14 @@ def get_edit_field_kb(course_id: int):
     return builder.as_markup()
 
 
-# Просмотр пользователей
+# ------------------------------------------------------------------------------------
+# Страница пользователей
 class UserPaginationCallback(CallbackData, prefix="users_page"):
     action: str
     offset: int
 
 
+# ------------------------------------------------------------------------------------
 # Клавиатура для пагинации
 def get_users_pagination_kb(
     offset: int, total_users: int, page_size: int
