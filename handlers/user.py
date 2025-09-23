@@ -1,5 +1,3 @@
-# handlers/user.py
-
 import logging
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart
@@ -14,7 +12,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from datetime import datetime, timedelta
 import asyncio
 
-# --- Импорты из нашего проекта ---
 from keyboards.user_kb import (
     main_menu_kb,
     get_courses_list_kb,
@@ -68,29 +65,20 @@ async def show_course_details(
     await callback.answer()
 
 
-# --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ ТАЙМЕРА ---
 async def expire_invoice_message(
     bot: Bot, chat_id: int, message_id: int, payment_id: int
 ):
-    """
-    Отложенная функция, которая проверяет, и удаляет просроченный счет.
-    """
-    # Ждём 10 минут, пока счет действителен
-    await asyncio.sleep(600)  # 600 секунд = 10 минут
 
-    # Проверяем статус платежа в нашей БД
+    await asyncio.sleep(600)
+
     payment_info = await payments_db.get_payment_info(payment_id)
 
-    # Если платеж все еще в статусе 'pending' (не оплачен)
     if payment_info and payment_info["status"] == "pending":
         try:
-            # Обновляем статус на 'canceled'
             await payments_db.update_payment_status(payment_id, "canceled")
 
-            # Удаляем старое сообщение с инвойсом
             await bot.delete_message(chat_id=chat_id, message_id=message_id)
 
-            # Отправляем новое сообщение
             await bot.send_message(
                 chat_id=chat_id,
                 text="❌ **Время для оплаты истекло!**\n\nДля покупки курса создайте новый счет.",
@@ -100,7 +88,6 @@ async def expire_invoice_message(
             logging.error(f"Не удалось удалить или отправить сообщение: {e}")
 
 
-# --- ИСПРАВЛЕННЫЙ ХЕНДЛЕР ПОКУПКИ ---
 @user_router.callback_query(CourseCallbackFactory.filter(F.action == "buy"))
 async def buy_course_handler(
     callback: CallbackQuery, callback_data: CourseCallbackFactory, bot: Bot
@@ -123,7 +110,6 @@ async def buy_course_handler(
         return
 
     try:
-        # Отправляем инвойс и сохраняем его Message ID
         invoice_message = await bot.send_invoice(
             chat_id=user_id,
             title=title,
@@ -136,7 +122,6 @@ async def buy_course_handler(
             ],
         )
 
-        # Запускаем отложенную задачу для удаления через 10 минут
         asyncio.create_task(
             expire_invoice_message(
                 bot, invoice_message.chat.id, invoice_message.message_id, payment_id
@@ -147,7 +132,6 @@ async def buy_course_handler(
         logging.error(f"Ошибка при отправке инвойса: {e}")
 
 
-# --- БЕЗ ИЗМЕНЕНИЙ ---
 @user_router.pre_checkout_query()
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery, bot: Bot):
     payload = pre_checkout_query.invoice_payload
