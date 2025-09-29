@@ -18,6 +18,8 @@ async def main():
     )
 
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    await bot.delete_webhook(drop_pending_updates=True)
+
     dp = Dispatcher()
 
     # Создаем и инициализируем пул соединений с БД
@@ -28,8 +30,6 @@ async def main():
     dp.callback_query.middleware(ThrottlingMiddleware())
     dp.include_router(user_router)
     dp.include_router(admin_router)
-
-    await bot.delete_webhook(drop_pending_updates=True)
 
     # Запускаем long polling
     try:
