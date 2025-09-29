@@ -3,4 +3,4 @@ asyncpg==0.30.0
 python-dotenv==1.0.1
 loguru==0.7.2
 cachetools==4.2.2
-aiohttp==3.12.15
+aiohttp==3.8.5
