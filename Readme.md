@@ -117,7 +117,6 @@ pip install -r requirements.txt
 BOT_TOKEN="..."
 ADMIN_IDS="..."
 PAYMENT_PROVIDER_TOKEN="..."
-WEBHOOK_HOST="https://your-domain.com"
 DATABASE_URL="postgresql://user:password@localhost:5432/dbname"
 ```
 
