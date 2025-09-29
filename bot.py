@@ -11,6 +11,9 @@ from handlers.user import user_router
 from handlers.admin import admin_router
 from middlewares.throttling import ThrottlingMiddleware
 
+APP_HOST = "0.0.0.0"
+APP_PORT = int(os.environ.get("PORT", 8080))
+
 
 async def main():
     logging.basicConfig(
