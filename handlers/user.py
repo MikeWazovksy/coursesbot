@@ -36,7 +36,7 @@ async def handle_start(message: Message, pool: asyncpg.Pool):
     welcome_message = await settings_db.get_setting(pool, "welcome_message")
     if not welcome_message:
         welcome_message = f"👋 Привет, {user.first_name}!\nЯ помогу тебе освоить закупки товаров из Китая.\nВыбери нужный раздел ниже"
-    
+
     # Поддержка плейсхолдера {user_name}
     welcome_message = welcome_message.replace("{user_name}", user.first_name)
 
@@ -194,8 +194,8 @@ async def process_successful_payment(message: Message, pool: asyncpg.Pool, bot: 
     # Отправка уведомления администраторам
     try:
         course = await courses_db.get_course_by_id(pool, course_id)
-        user = await users_db.get_user_by_id(pool, user_id)
-        
+        user = await users_db.get_user(pool, user_id)
+
         if course and user:
             user_full_name = html.escape(user.get("full_name", "N/A"))
             user_username = user.get("username", "N/A")
@@ -208,7 +208,7 @@ async def process_successful_payment(message: Message, pool: asyncpg.Pool, bot: 
                 f"🎓 {hbold('Курс:')} «{course_title}»\n"
                 f"💰 {hbold('Сумма:')} {amount:.2f} руб."
             )
-            
+
             for admin_id in ADMIN_IDS:
                 await bot.send_message(admin_id, text)
     except Exception as e:
