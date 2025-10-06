@@ -4,9 +4,6 @@ from typing import Union
 
 from config import ADMIN_IDS
 
-
-# ------------------------------------------------------------------------------------
-# Проверка админа
 class IsAdmin(BaseFilter):
 
     async def __call__(self, message: Message) -> bool:

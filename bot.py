@@ -31,10 +31,6 @@ async def start_dummy_server():
     await site.start()
     logging.info(f"Dummy HTTP server running on {APP_HOST}:{APP_PORT}")
 
-
-# =======================
-# Основной код бота
-# =======================
 async def main():
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -48,7 +44,6 @@ async def main():
 
     dp = Dispatcher()
 
-    # Создаем и инициализируем пул соединений с БД
     pool = await create_pool()
     await initialize_db(pool)
 
@@ -57,7 +52,6 @@ async def main():
     dp.include_router(user_router)
     dp.include_router(admin_router)
 
-    # Запускаем long polling
     try:
         logging.info("Бот запускается в режиме long polling...")
         await dp.start_polling(bot, pool=pool)

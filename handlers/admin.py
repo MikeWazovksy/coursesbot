@@ -148,7 +148,6 @@ async def paginate_courses_list(
 
 
 def _format_course_details_text(course: Dict, course_id: int, title_prefix: str) -> str:
-    """Форматирует текстовое представление карточки курса."""
     title = html.escape(course.get("title", ""))
     short_desc = html.escape(course.get("short_description", ""))
     full_desc = html.escape(course.get("full_description", ""))
@@ -170,7 +169,6 @@ def _format_course_details_text(course: Dict, course_id: int, title_prefix: str)
 async def view_course(
     callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool
 ):
-    """Показывает детальную информацию о курсе."""
     await callback.answer()
     course_id = callback_data.course_id
     course = await courses_db.get_course_by_id(pool, course_id)
@@ -190,7 +188,6 @@ async def view_course(
 async def confirm_delete_course(
     callback: CallbackQuery, callback_data: AdminCourseCallback
 ):
-    """Запрашивает подтверждение на удаление курса."""
     await callback.message.edit_text(
         "Вы уверены, что хотите удалить этот курс?",
         reply_markup=get_confirm_delete_kb(callback_data.course_id),
@@ -202,7 +199,6 @@ async def confirm_delete_course(
 async def delete_course_confirmed(
     callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool
 ):
-    """Удаляет курс после подтверждения."""
     course_id = callback_data.course_id
     await courses_db.delete_course(pool, course_id)
     await callback.message.edit_text("Курс был успешно удален.")
@@ -273,9 +269,6 @@ async def choose_field_to_edit(
 
 @admin_router.message(EditCourse.entering_new_value)
 async def process_new_value(message: Message, state: FSMContext, pool: asyncpg.Pool):
-    """
-    Обрабатывает новое значение для редактируемого поля курса.
-    """
     new_value = message.text
     data = await state.get_data()
     course_id = data.get("course_id")
@@ -304,7 +297,6 @@ async def process_new_value(message: Message, state: FSMContext, pool: asyncpg.P
     text = f"✅ Поле {hbold(display_name)} для курса {hbold('ID ' + str(course_id))} было обновлено!"
     await message.answer(text, reply_markup=admin_main_kb)
 
-    # Показываем обновленную карточку курса
     course = await courses_db.get_course_by_id(pool, course_id)
     if course:
         text = _format_course_details_text(course, course_id, "Обновленный курс")
@@ -315,7 +307,6 @@ async def process_new_value(message: Message, state: FSMContext, pool: asyncpg.P
         )
 
 
-# --- Статистика и Пользователи ---
 @admin_router.message(F.text == "📊 Статистика", IsAdmin())
 async def show_stats(message: Message, pool: asyncpg.Pool):
     stats = await stats_db.get_main_stats(pool)

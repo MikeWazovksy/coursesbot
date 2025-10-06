@@ -7,8 +7,6 @@ from aiogram.types import (
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData
 
-# ------------------------------------------------------------------------------------
-# Клавиатура админа
 admin_main_kb = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -22,15 +20,10 @@ admin_main_kb = ReplyKeyboardMarkup(
 )
 
 
-# ------------------------------------------------------------------------------------
-# Клавиатура отмены действий
 cancel_kb = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="❌ Отмена")]], resize_keyboard=True
 )
 
-
-# ------------------------------------------------------------------------------------
-# Колбэк курсов
 class AdminCourseCallback(CallbackData, prefix="admin_course"):
     action: str
     course_id: int
@@ -41,8 +34,6 @@ class AdminCoursePaginationCallback(CallbackData, prefix="admin_course_page"):
     offset: int
 
 
-# ------------------------------------------------------------------------------------
-# Вернуться в меню
 def get_admin_courses_kb(courses: list, offset: int, total_courses: int, page_size: int):
     builder = InlineKeyboardBuilder()
     for course in courses:
@@ -50,7 +41,7 @@ def get_admin_courses_kb(courses: list, offset: int, total_courses: int, page_si
             text=f"ID: {course[0]} | {course[1]}",
             callback_data=AdminCourseCallback(action="view", course_id=course[0]),
         )
-    
+
     pagination_buttons = []
     if offset > 0:
         pagination_buttons.append(
@@ -66,7 +57,7 @@ def get_admin_courses_kb(courses: list, offset: int, total_courses: int, page_si
                 callback_data=AdminCoursePaginationCallback(action="next", offset=offset).pack(),
             )
         )
-    
+
     builder.row(*pagination_buttons)
 
     builder.button(
@@ -78,8 +69,6 @@ def get_admin_courses_kb(courses: list, offset: int, total_courses: int, page_si
     return builder.as_markup()
 
 
-# ------------------------------------------------------------------------------------
-# Кнопки редактирования и возврата назад к списку курсов
 def get_course_manage_kb(course_id: int):
     """Генерирует меню управления для выбранного курса."""
     builder = InlineKeyboardBuilder()
@@ -113,15 +102,11 @@ def get_confirm_delete_kb(course_id: int):
     return builder.as_markup()
 
 
-# ------------------------------------------------------------------------------------
-# Колбэк юзеров
 class EditCourseCallback(CallbackData, prefix="edit_course_field"):
     course_id: int
     field: str
 
 
-# ------------------------------------------------------------------------------------
-# Клавитаура выбора поля
 def get_edit_field_kb(course_id: int):
     builder = InlineKeyboardBuilder()
     fields = {
@@ -136,7 +121,6 @@ def get_edit_field_kb(course_id: int):
             text=name,
             callback_data=EditCourseCallback(course_id=course_id, field=field),
         )
-    # Кнопка назад
     builder.button(
         text="⬅️ Назад",
         callback_data=AdminCourseCallback(action="view", course_id=course_id),
@@ -144,29 +128,21 @@ def get_edit_field_kb(course_id: int):
     builder.adjust(2, 2, 1)
     return builder.as_markup()
 
-
-# ------------------------------------------------------------------------------------
-# Страница пользователей
 class UserPaginationCallback(CallbackData, prefix="users_page"):
     action: str
     offset: int
 
 
-# ------------------------------------------------------------------------------------
-# Клавиатура для пагинации
 def get_users_pagination_kb(
     offset: int, total_users: int, page_size: int
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
 
-    # Кнопка "Назад"
     if offset > 0:
         builder.button(
             text="⬅️ Назад",
             callback_data=UserPaginationCallback(action="prev", offset=offset),
         )
-
-    # Кнопка "Вперёд"
     if offset + page_size < total_users:
         builder.button(
             text="Вперёд ➡️",
