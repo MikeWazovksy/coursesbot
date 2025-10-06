@@ -31,3 +31,9 @@ async def get_paginated_users(pool: asyncpg.Pool, limit: int, offset: int) -> Li
             limit, offset
         )
         return [dict(row) for row in rows]
+
+async def get_user(pool: asyncpg.Pool, user_id: int):
+    """Получает одного пользователя по его ID."""
+    async with pool.acquire() as connection:
+        query = "SELECT * FROM users WHERE user_id = $1"
+        return await connection.fetchrow(query, user_id)
