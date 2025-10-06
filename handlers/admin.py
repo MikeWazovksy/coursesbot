@@ -24,6 +24,7 @@ async def admin_panel(message: Message):
         "👋 Добро пожаловать в админ-панель!", reply_markup=admin_main_kb
     )
 
+
 @admin_router.message(F.text == "❌ Отмена")
 async def cancel_action(message: Message, state: FSMContext):
     current_state = await state.get_state()
@@ -38,17 +39,22 @@ async def start_add_course(message: Message, state: FSMContext):
     await state.set_state(AddCourse.title)
     await message.answer("Введите название нового курса:", reply_markup=cancel_kb)
 
+
 @admin_router.message(AddCourse.title)
 async def process_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
     await state.set_state(AddCourse.short_description)
     await message.answer("Отлично! Теперь введите краткое описание курса:")
 
+
 @admin_router.message(AddCourse.short_description)
 async def process_short_description(message: Message, state: FSMContext):
     await state.update_data(short_description=message.text)
     await state.set_state(AddCourse.full_description)
-    await message.answer("Отлично! Теперь введите полное описание (можно пропустить, отправив '-')")
+    await message.answer(
+        "Отлично! Теперь введите полное описание (можно пропустить, отправив '-')"
+    )
+
 
 @admin_router.message(AddCourse.full_description)
 async def process_full_description(message: Message, state: FSMContext):
@@ -57,11 +63,14 @@ async def process_full_description(message: Message, state: FSMContext):
     await state.set_state(AddCourse.materials_link)
     await message.answer("Отлично! Теперь отправьте ссылку на материалы:")
 
+
 @admin_router.message(AddCourse.materials_link)
 async def process_materials_link(message: Message, state: FSMContext):
     await state.update_data(materials_link=message.text)
     await state.set_state(AddCourse.price)
-    await message.answer("Почти готово! Укажите стоимость курса в рублях (только число):")
+    await message.answer(
+        "Почти готово! Укажите стоимость курса в рублях (только число):"
+    )
 
 
 @admin_router.message(AddCourse.price)
@@ -75,12 +84,14 @@ async def process_price(message: Message, state: FSMContext, pool: asyncpg.Pool)
     course_data = await state.get_data()
     await courses_db.add_course(
         pool,
-        title=course_data["title"], short_desc=course_data["short_description"],
-        full_desc=course_data["full_description"], link=course_data["materials_link"],
-        price=price
+        title=course_data["title"],
+        short_desc=course_data["short_description"],
+        full_desc=course_data["full_description"],
+        link=course_data["materials_link"],
+        price=price,
     )
     await state.clear()
-    title = html.escape(course_data.get('title', ''))
+    title = html.escape(course_data.get("title", ""))
     text = f"✅ Курс «{hbold(title)}» успешно добавлен!\n\nЦена: {price} руб."
     await message.answer(text, reply_markup=admin_main_kb)
 
@@ -91,25 +102,28 @@ COURSES_PER_PAGE = 5
 @admin_router.message(F.text == "📋 Список курсов", IsAdmin())
 async def list_courses(message: Message, pool: asyncpg.Pool):
     total_courses = await courses_db.get_total_courses_count(pool)
-    courses = await courses_db.get_paginated_courses(pool, limit=COURSES_PER_PAGE, offset=0)
+    courses = await courses_db.get_paginated_courses(
+        pool, limit=COURSES_PER_PAGE, offset=0
+    )
 
     if not courses:
         await message.answer("В базе данных пока нет курсов.")
         return
 
     await message.answer(
-        "Выберите курс для управления:", 
+        "Выберите курс для управления:",
         reply_markup=get_admin_courses_kb(
-            courses,
-            offset=0,
-            total_courses=total_courses,
-            page_size=COURSES_PER_PAGE
-        )
+            courses, offset=0, total_courses=total_courses, page_size=COURSES_PER_PAGE
+        ),
     )
 
 
 @admin_router.callback_query(AdminCoursePaginationCallback.filter())
-async def paginate_courses_list(callback: CallbackQuery, callback_data: AdminCoursePaginationCallback, pool: asyncpg.Pool):
+async def paginate_courses_list(
+    callback: CallbackQuery,
+    callback_data: AdminCoursePaginationCallback,
+    pool: asyncpg.Pool,
+):
     current_offset = callback_data.offset
     if callback_data.action == "next":
         new_offset = current_offset + COURSES_PER_PAGE
@@ -117,7 +131,9 @@ async def paginate_courses_list(callback: CallbackQuery, callback_data: AdminCou
         new_offset = current_offset - COURSES_PER_PAGE
 
     total_courses = await courses_db.get_total_courses_count(pool)
-    courses = await courses_db.get_paginated_courses(pool, limit=COURSES_PER_PAGE, offset=new_offset)
+    courses = await courses_db.get_paginated_courses(
+        pool, limit=COURSES_PER_PAGE, offset=new_offset
+    )
 
     await callback.message.edit_text(
         "Выберите курс для управления:",
@@ -125,30 +141,35 @@ async def paginate_courses_list(callback: CallbackQuery, callback_data: AdminCou
             courses,
             offset=new_offset,
             total_courses=total_courses,
-            page_size=COURSES_PER_PAGE
-        )
+            page_size=COURSES_PER_PAGE,
+        ),
     )
     await callback.answer()
 
+
 def _format_course_details_text(course: Dict, course_id: int, title_prefix: str) -> str:
     """Форматирует текстовое представление карточки курса."""
-    title = html.escape(course.get('title', ''))
-    short_desc = html.escape(course.get('short_description', ''))
-    full_desc = html.escape(course.get('full_description', ''))
-    price = course.get('price', 0)
-    link = hlink('Ссылка', course.get('materials_link', ''))
-    
-    return (f"📖 {hbold(title_prefix)}\n\n"
-            f"{hbold('ID:')} {hcode(course_id)}\n"
-            f"{hbold('Название:')} {title}\n"
-            f"{hbold('Краткое описание:')} {short_desc}\n"
-            f"{hbold('Полное описание:')} {full_desc}\n"
-            f"{hbold('Цена:')} {price} руб.\n"
-            f"{hbold('Ссылка:')} {link}")
+    title = html.escape(course.get("title", ""))
+    short_desc = html.escape(course.get("short_description", ""))
+    full_desc = html.escape(course.get("full_description", ""))
+    price = course.get("price", 0)
+    link = hlink("Ссылка", course.get("materials_link", ""))
+
+    return (
+        f"📖 {hbold(title_prefix)}\n\n"
+        f"{hbold('ID:')} {hcode(course_id)}\n"
+        f"{hbold('Название:')} {title}\n"
+        f"{hbold('Краткое описание:')} {short_desc}\n"
+        f"{hbold('Полное описание:')} {full_desc}\n"
+        f"{hbold('Цена:')} {price} руб.\n"
+        f"{hbold('Ссылка:')} {link}"
+    )
 
 
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "view"))
-async def view_course(callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool):
+async def view_course(
+    callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool
+):
     """Показывает детальную информацию о курсе."""
     await callback.answer()
     course_id = callback_data.course_id
@@ -159,44 +180,54 @@ async def view_course(callback: CallbackQuery, callback_data: AdminCourseCallbac
 
     text = _format_course_details_text(course, course_id, "Просмотр курса")
     await callback.message.edit_text(
-        text, reply_markup=get_course_manage_kb(course_id), disable_web_page_preview=True
+        text,
+        reply_markup=get_course_manage_kb(course_id),
+        disable_web_page_preview=True,
     )
 
+
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "delete"))
-async def confirm_delete_course(callback: CallbackQuery, callback_data: AdminCourseCallback):
+async def confirm_delete_course(
+    callback: CallbackQuery, callback_data: AdminCourseCallback
+):
     """Запрашивает подтверждение на удаление курса."""
     await callback.message.edit_text(
         "Вы уверены, что хотите удалить этот курс?",
-        reply_markup=get_confirm_delete_kb(callback_data.course_id)
+        reply_markup=get_confirm_delete_kb(callback_data.course_id),
     )
     await callback.answer()
 
 
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "confirm_delete"))
-async def delete_course_confirmed(callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool):
+async def delete_course_confirmed(
+    callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool
+):
     """Удаляет курс после подтверждения."""
     course_id = callback_data.course_id
     await courses_db.delete_course(pool, course_id)
     await callback.message.edit_text("Курс был успешно удален.")
     await callback.answer()
 
+
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "back_to_list"))
 async def back_to_course_list_admin(callback: CallbackQuery, pool: asyncpg.Pool):
     total_courses = await courses_db.get_total_courses_count(pool)
-    courses = await courses_db.get_paginated_courses(pool, limit=COURSES_PER_PAGE, offset=0)
-    
+    courses = await courses_db.get_paginated_courses(
+        pool, limit=COURSES_PER_PAGE, offset=0
+    )
+
     await callback.message.edit_text(
         "Выберите курс для управления:",
         reply_markup=get_admin_courses_kb(
-            courses,
-            offset=0,
-            total_courses=total_courses,
-            page_size=COURSES_PER_PAGE
+            courses, offset=0, total_courses=total_courses, page_size=COURSES_PER_PAGE
         ),
     )
     await callback.answer()
 
-@admin_router.callback_query(AdminCourseCallback.filter(F.action == "back_to_main_menu"))
+
+@admin_router.callback_query(
+    AdminCourseCallback.filter(F.action == "back_to_main_menu")
+)
 async def back_to_main_menu_admin(callback: CallbackQuery):
     await callback.message.delete()
     await callback.message.answer(
@@ -206,7 +237,9 @@ async def back_to_main_menu_admin(callback: CallbackQuery):
 
 
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "edit"))
-async def start_edit_course(callback: CallbackQuery, callback_data: AdminCourseCallback, state: FSMContext):
+async def start_edit_course(
+    callback: CallbackQuery, callback_data: AdminCourseCallback, state: FSMContext
+):
     course_id = callback_data.course_id
     await state.set_state(EditCourse.choosing_field)
     await state.update_data(course_id=course_id)
@@ -216,13 +249,19 @@ async def start_edit_course(callback: CallbackQuery, callback_data: AdminCourseC
     )
     await callback.answer()
 
+
 @admin_router.callback_query(EditCourseCallback.filter(), EditCourse.choosing_field)
-async def choose_field_to_edit(callback: CallbackQuery, callback_data: EditCourseCallback, state: FSMContext):
+async def choose_field_to_edit(
+    callback: CallbackQuery, callback_data: EditCourseCallback, state: FSMContext
+):
     await callback.answer()
     field = callback_data.field
     field_names = {
-        "title": "новое название", "short_description": "новое краткое описание",
-        "full_description": "новое полное описание", "materials_link": "новую ссылку", "price": "новую цену",
+        "title": "новое название",
+        "short_description": "новое краткое описание",
+        "full_description": "новое полное описание",
+        "materials_link": "новую ссылку",
+        "price": "новую цену",
     }
     await state.update_data(field_to_edit=field)
     await state.set_state(EditCourse.entering_new_value)
@@ -230,6 +269,7 @@ async def choose_field_to_edit(callback: CallbackQuery, callback_data: EditCours
     await callback.message.answer(
         f"Введите {field_names.get(field, 'новое значение')}:", reply_markup=cancel_kb
     )
+
 
 @admin_router.message(EditCourse.entering_new_value)
 async def process_new_value(message: Message, state: FSMContext, pool: asyncpg.Pool):
@@ -245,15 +285,20 @@ async def process_new_value(message: Message, state: FSMContext, pool: asyncpg.P
         try:
             new_value = float(new_value.replace(",", "."))
         except ValueError:
-            await message.answer("Неверный формат цены. Введите число (например, 1990.50).")
+            await message.answer(
+                "Неверный формат цены. Введите число (например, 1990.50)."
+            )
             return
 
     await courses_db.update_course_field(pool, course_id, field, new_value)
     await state.clear()
 
     display_field_names = {
-        "title": "Название", "short_description": "Краткое описание",
-        "full_description": "Полное описание", "materials_link": "Ссылка", "price": "Цена",
+        "title": "Название",
+        "short_description": "Краткое описание",
+        "full_description": "Полное описание",
+        "materials_link": "Ссылка",
+        "price": "Цена",
     }
     display_name = display_field_names.get(field, field)
     text = f"✅ Поле {hbold(display_name)} для курса {hbold('ID ' + str(course_id))} было обновлено!"
@@ -264,9 +309,9 @@ async def process_new_value(message: Message, state: FSMContext, pool: asyncpg.P
     if course:
         text = _format_course_details_text(course, course_id, "Обновленный курс")
         await message.answer(
-            text, 
-            reply_markup=get_course_manage_kb(course_id), 
-            disable_web_page_preview=True
+            text,
+            reply_markup=get_course_manage_kb(course_id),
+            disable_web_page_preview=True,
         )
 
 
@@ -283,7 +328,9 @@ async def show_stats(message: Message, pool: asyncpg.Pool):
     )
     await message.answer(text)
 
+
 USERS_PER_PAGE = 5
+
 
 async def format_users_list(users: List[Dict]) -> str:
     if not users:
@@ -299,10 +346,10 @@ async def format_users_list(users: List[Dict]) -> str:
             f"   {hbold('Имя:')} {full_name}\n"
             f"   {hbold('Username:')} @{username}\n"
             f"   {hbold('Куплено курсов:')} {courses_purchased}\n"
-            f"--------------------
-"
+            f"--------------------"
         )
     return text
+
 
 @admin_router.message(F.text == "👥 Список юзеров", IsAdmin())
 async def list_users(message: Message, pool: asyncpg.Pool):
@@ -316,15 +363,20 @@ async def list_users(message: Message, pool: asyncpg.Pool):
         ),
     )
 
+
 @admin_router.callback_query(UserPaginationCallback.filter())
-async def paginate_users_list(callback: CallbackQuery, callback_data: UserPaginationCallback, pool: asyncpg.Pool):
+async def paginate_users_list(
+    callback: CallbackQuery, callback_data: UserPaginationCallback, pool: asyncpg.Pool
+):
     current_offset = callback_data.offset
     if callback_data.action == "next":
         new_offset = current_offset + USERS_PER_PAGE
     else:
         new_offset = current_offset - USERS_PER_PAGE
     total_users = await users_db.get_total_users_count(pool)
-    users = await users_db.get_paginated_users(pool, limit=USERS_PER_PAGE, offset=new_offset)
+    users = await users_db.get_paginated_users(
+        pool, limit=USERS_PER_PAGE, offset=new_offset
+    )
     text = await format_users_list(users)
     await callback.message.edit_text(
         text,
@@ -334,8 +386,11 @@ async def paginate_users_list(callback: CallbackQuery, callback_data: UserPagina
     )
     await callback.answer()
 
+
 @admin_router.message(F.text == "✏️ Изменить приветствие", IsAdmin())
-async def start_edit_welcome_message(message: Message, state: FSMContext, pool: asyncpg.Pool):
+async def start_edit_welcome_message(
+    message: Message, state: FSMContext, pool: asyncpg.Pool
+):
     current_welcome_message = await settings_db.get_setting(pool, "welcome_message")
     if current_welcome_message:
         await message.answer(
@@ -351,7 +406,9 @@ async def start_edit_welcome_message(message: Message, state: FSMContext, pool: 
 
 
 @admin_router.message(EditWelcomeMessage.entering_message)
-async def process_new_welcome_message(message: Message, state: FSMContext, pool: asyncpg.Pool):
+async def process_new_welcome_message(
+    message: Message, state: FSMContext, pool: asyncpg.Pool
+):
     await settings_db.set_setting(pool, "welcome_message", message.text)
     await state.clear()
     await message.answer(
