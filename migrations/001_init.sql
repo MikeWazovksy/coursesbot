@@ -35,3 +35,9 @@ CREATE TABLE IF NOT EXISTS payments (
     message_id BIGINT,
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Таблица настроек
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);

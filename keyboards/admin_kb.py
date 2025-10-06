@@ -16,6 +16,7 @@ admin_main_kb = ReplyKeyboardMarkup(
             KeyboardButton(text="📋 Список курсов"),
         ],
         [KeyboardButton(text="👥 Список юзеров"), KeyboardButton(text="📊 Статистика")],
+        [KeyboardButton(text="✏️ Изменить приветствие")],
     ],
     resize_keyboard=True,
 )
@@ -35,15 +36,38 @@ class AdminCourseCallback(CallbackData, prefix="admin_course"):
     course_id: int
 
 
+class AdminCoursePaginationCallback(CallbackData, prefix="admin_course_page"):
+    action: str
+    offset: int
+
+
 # ------------------------------------------------------------------------------------
 # Вернуться в меню
-def get_admin_courses_kb(courses: list):
+def get_admin_courses_kb(courses: list, offset: int, total_courses: int, page_size: int):
     builder = InlineKeyboardBuilder()
     for course in courses:
         builder.button(
             text=f"ID: {course[0]} | {course[1]}",
             callback_data=AdminCourseCallback(action="view", course_id=course[0]),
         )
+    
+    pagination_buttons = []
+    if offset > 0:
+        pagination_buttons.append(
+            InlineKeyboardButton(
+                text="⬅️ Назад",
+                callback_data=AdminCoursePaginationCallback(action="prev", offset=offset).pack(),
+            )
+        )
+    if offset + page_size < total_courses:
+        pagination_buttons.append(
+            InlineKeyboardButton(
+                text="Вперёд ➡️",
+                callback_data=AdminCoursePaginationCallback(action="next", offset=offset).pack(),
+            )
+        )
+    
+    builder.row(*pagination_buttons)
 
     builder.button(
         text="⬅️ Назад в меню",
@@ -72,6 +96,20 @@ def get_course_manage_kb(course_id: int):
         callback_data=AdminCourseCallback(action="back_to_list", course_id=0),
     )
     builder.adjust(2, 1)
+    return builder.as_markup()
+
+def get_confirm_delete_kb(course_id: int):
+    """Генерирует клавиатуру для подтверждения удаления курса."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="✅ Да, удалить",
+        callback_data=AdminCourseCallback(action="confirm_delete", course_id=course_id),
+    )
+    builder.button(
+        text="❌ Нет, отмена",
+        callback_data=AdminCourseCallback(action="view", course_id=course_id),
+    )
+    builder.adjust(2)
     return builder.as_markup()
 
 

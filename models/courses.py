@@ -33,3 +33,21 @@ async def update_course_field(pool: asyncpg.Pool, course_id: int, field: str, va
 
     async with pool.acquire() as conn:
         await conn.execute(f"UPDATE courses SET {field} = $1 WHERE id = $2", value, course_id)
+
+async def get_total_courses_count(pool: asyncpg.Pool) -> int:
+    async with pool.acquire() as conn:
+        count = await conn.fetchval("SELECT COUNT(*) FROM courses")
+        return count
+
+async def get_paginated_courses(pool: asyncpg.Pool, limit: int, offset: int) -> List:
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT *
+            FROM courses
+            ORDER BY id
+            LIMIT $1 OFFSET $2
+            """,
+            limit, offset
+        )
+        return rows

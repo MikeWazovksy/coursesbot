@@ -12,7 +12,8 @@ from keyboards.admin_kb import *
 from models import courses as courses_db
 from models import stats as stats_db
 from models import users as users_db
-from states.admin_states import AddCourse, EditCourse
+from models import settings as settings_db
+from states.admin_states import AddCourse, EditCourse, EditWelcomeMessage
 
 admin_router = Router()
 
@@ -84,41 +85,96 @@ async def process_price(message: Message, state: FSMContext, pool: asyncpg.Pool)
     await message.answer(text, reply_markup=admin_main_kb)
 
 
+COURSES_PER_PAGE = 5
+
+
 @admin_router.message(F.text == "📋 Список курсов", IsAdmin())
 async def list_courses(message: Message, pool: asyncpg.Pool):
-    all_courses = await courses_db.get_all_courses(pool)
-    if not all_courses:
+    total_courses = await courses_db.get_total_courses_count(pool)
+    courses = await courses_db.get_paginated_courses(pool, limit=COURSES_PER_PAGE, offset=0)
+
+    if not courses:
         await message.answer("В базе данных пока нет курсов.")
         return
-    await message.answer("Выберите курс для управления:", reply_markup=get_admin_courses_kb(all_courses))
 
-@admin_router.callback_query(AdminCourseCallback.filter(F.action == "view"))
-async def view_course(callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool):
-    course_id = callback_data.course_id
-    course = await courses_db.get_course_by_id(pool, course_id)
-    if not course:
-        await callback.answer("Курс не найден!", show_alert=True)
-        return
+    await message.answer(
+        "Выберите курс для управления:", 
+        reply_markup=get_admin_courses_kb(
+            courses,
+            offset=0,
+            total_courses=total_courses,
+            page_size=COURSES_PER_PAGE
+        )
+    )
 
+
+@admin_router.callback_query(AdminCoursePaginationCallback.filter())
+async def paginate_courses_list(callback: CallbackQuery, callback_data: AdminCoursePaginationCallback, pool: asyncpg.Pool):
+    current_offset = callback_data.offset
+    if callback_data.action == "next":
+        new_offset = current_offset + COURSES_PER_PAGE
+    else:
+        new_offset = current_offset - COURSES_PER_PAGE
+
+    total_courses = await courses_db.get_total_courses_count(pool)
+    courses = await courses_db.get_paginated_courses(pool, limit=COURSES_PER_PAGE, offset=new_offset)
+
+    await callback.message.edit_text(
+        "Выберите курс для управления:",
+        reply_markup=get_admin_courses_kb(
+            courses,
+            offset=new_offset,
+            total_courses=total_courses,
+            page_size=COURSES_PER_PAGE
+        )
+    )
+    await callback.answer()
+
+def _format_course_details_text(course: Dict, course_id: int, title_prefix: str) -> str:
+    """Форматирует текстовое представление карточки курса."""
     title = html.escape(course.get('title', ''))
     short_desc = html.escape(course.get('short_description', ''))
     full_desc = html.escape(course.get('full_description', ''))
     price = course.get('price', 0)
     link = hlink('Ссылка', course.get('materials_link', ''))
-    text = (f"📖 {hbold('Просмотр курса')}\n\n"
+    
+    return (f"📖 {hbold(title_prefix)}\n\n"
             f"{hbold('ID:')} {hcode(course_id)}\n"
             f"{hbold('Название:')} {title}\n"
             f"{hbold('Краткое описание:')} {short_desc}\n"
             f"{hbold('Полное описание:')} {full_desc}\n"
             f"{hbold('Цена:')} {price} руб.\n"
             f"{hbold('Ссылка:')} {link}")
+
+
+@admin_router.callback_query(AdminCourseCallback.filter(F.action == "view"))
+async def view_course(callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool):
+    """Показывает детальную информацию о курсе."""
+    await callback.answer()
+    course_id = callback_data.course_id
+    course = await courses_db.get_course_by_id(pool, course_id)
+    if not course:
+        await callback.answer("Курс не найден!", show_alert=True)
+        return
+
+    text = _format_course_details_text(course, course_id, "Просмотр курса")
     await callback.message.edit_text(
         text, reply_markup=get_course_manage_kb(course_id), disable_web_page_preview=True
     )
-    await callback.answer()
 
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "delete"))
-async def confirm_delete_course(callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool):
+async def confirm_delete_course(callback: CallbackQuery, callback_data: AdminCourseCallback):
+    """Запрашивает подтверждение на удаление курса."""
+    await callback.message.edit_text(
+        "Вы уверены, что хотите удалить этот курс?",
+        reply_markup=get_confirm_delete_kb(callback_data.course_id)
+    )
+    await callback.answer()
+
+
+@admin_router.callback_query(AdminCourseCallback.filter(F.action == "confirm_delete"))
+async def delete_course_confirmed(callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool):
+    """Удаляет курс после подтверждения."""
     course_id = callback_data.course_id
     await courses_db.delete_course(pool, course_id)
     await callback.message.edit_text("Курс был успешно удален.")
@@ -126,10 +182,17 @@ async def confirm_delete_course(callback: CallbackQuery, callback_data: AdminCou
 
 @admin_router.callback_query(AdminCourseCallback.filter(F.action == "back_to_list"))
 async def back_to_course_list_admin(callback: CallbackQuery, pool: asyncpg.Pool):
-    all_courses = await courses_db.get_all_courses(pool)
+    total_courses = await courses_db.get_total_courses_count(pool)
+    courses = await courses_db.get_paginated_courses(pool, limit=COURSES_PER_PAGE, offset=0)
+    
     await callback.message.edit_text(
         "Выберите курс для управления:",
-        reply_markup=get_admin_courses_kb(all_courses),
+        reply_markup=get_admin_courses_kb(
+            courses,
+            offset=0,
+            total_courses=total_courses,
+            page_size=COURSES_PER_PAGE
+        ),
     )
     await callback.answer()
 
@@ -169,11 +232,15 @@ async def choose_field_to_edit(callback: CallbackQuery, callback_data: EditCours
     )
 
 @admin_router.message(EditCourse.entering_new_value)
-async def process_new_value(message: Message, state: FSMContext, bot: Bot, pool: asyncpg.Pool):
+async def process_new_value(message: Message, state: FSMContext, pool: asyncpg.Pool):
+    """
+    Обрабатывает новое значение для редактируемого поля курса.
+    """
     new_value = message.text
     data = await state.get_data()
     course_id = data.get("course_id")
     field = data.get("field_to_edit")
+
     if field == "price":
         try:
             new_value = float(new_value.replace(",", "."))
@@ -191,29 +258,16 @@ async def process_new_value(message: Message, state: FSMContext, bot: Bot, pool:
     display_name = display_field_names.get(field, field)
     text = f"✅ Поле {hbold(display_name)} для курса {hbold('ID ' + str(course_id))} было обновлено!"
     await message.answer(text, reply_markup=admin_main_kb)
-    await view_course_after_edit(message, course_id, bot, pool)
 
-async def view_course_after_edit(message: Message, course_id: int, bot: Bot, pool: asyncpg.Pool):
+    # Показываем обновленную карточку курса
     course = await courses_db.get_course_by_id(pool, course_id)
-    if not course: return
-
-    title = html.escape(course.get('title', ''))
-    short_desc = html.escape(course.get('short_description', ''))
-    full_desc = html.escape(course.get('full_description', ''))
-    price = course.get('price', 0)
-    link = hlink('Ссылка', course.get('materials_link', ''))
-
-    text = (f"📖 {hbold('Обновленный курс')}\n\n"
-            f"{hbold('ID:')} {hcode(course_id)}\n"
-            f"{hbold('Название:')} {title}\n"
-            f"{hbold('Краткое описание:')} {short_desc}\n"
-            f"{hbold('Полное описание:')} {full_desc}\n"
-            f"{hbold('Цена:')} {price} руб.\n"
-            f"{hbold('Ссылка:')} {link}")
-    await bot.send_message(
-        chat_id=message.chat.id, text=text,
-        reply_markup=get_course_manage_kb(course_id), disable_web_page_preview=True,
-    )
+    if course:
+        text = _format_course_details_text(course, course_id, "Обновленный курс")
+        await message.answer(
+            text, 
+            reply_markup=get_course_manage_kb(course_id), 
+            disable_web_page_preview=True
+        )
 
 
 # --- Статистика и Пользователи ---
@@ -245,7 +299,8 @@ async def format_users_list(users: List[Dict]) -> str:
             f"   {hbold('Имя:')} {full_name}\n"
             f"   {hbold('Username:')} @{username}\n"
             f"   {hbold('Куплено курсов:')} {courses_purchased}\n"
-            f"--------------------\n"
+            f"--------------------
+"
         )
     return text
 
@@ -278,3 +333,28 @@ async def paginate_users_list(callback: CallbackQuery, callback_data: UserPagina
         ),
     )
     await callback.answer()
+
+@admin_router.message(F.text == "✏️ Изменить приветствие", IsAdmin())
+async def start_edit_welcome_message(message: Message, state: FSMContext, pool: asyncpg.Pool):
+    current_welcome_message = await settings_db.get_setting(pool, "welcome_message")
+    if current_welcome_message:
+        await message.answer(
+            f"Текущее приветствие:\n\n{current_welcome_message}\n\nОтправьте новое сообщение.",
+            reply_markup=cancel_kb,
+        )
+    else:
+        await message.answer(
+            "Приветственное сообщение еще не установлено. Отправьте его.",
+            reply_markup=cancel_kb,
+        )
+    await state.set_state(EditWelcomeMessage.entering_message)
+
+
+@admin_router.message(EditWelcomeMessage.entering_message)
+async def process_new_welcome_message(message: Message, state: FSMContext, pool: asyncpg.Pool):
+    await settings_db.set_setting(pool, "welcome_message", message.text)
+    await state.clear()
+    await message.answer(
+        "✅ Приветственное сообщение успешно обновлено!",
+        reply_markup=admin_main_kb,
+    )

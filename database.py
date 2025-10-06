@@ -27,6 +27,8 @@ async def initialize_db(pool: asyncpg.Pool):
 
             logging.info("Основные таблицы успешно созданы (или уже существовали).")
 
+            # This part is for backward compatibility with older db versions
+            # It can be removed if the db is created from scratch
             column_exists = await conn.fetchval(
                 """
                 SELECT EXISTS (

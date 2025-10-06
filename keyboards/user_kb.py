@@ -15,6 +15,7 @@ main_menu_kb = ReplyKeyboardMarkup(
             KeyboardButton(text="📚 Мои курсы"),
             KeyboardButton(text="🧾 История покупок"),
         ],
+        [KeyboardButton(text="📞 Контакт")],
     ],
     resize_keyboard=True,
 )

@@ -13,3 +13,6 @@ class EditCourse(StatesGroup):
 
     choosing_field = State()  # Ожидание выбора поля
     entering_new_value = State()  # Ожидание нового значения
+
+class EditWelcomeMessage(StatesGroup):
+    entering_message = State()
