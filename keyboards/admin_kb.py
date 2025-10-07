@@ -78,7 +78,6 @@ def get_admin_courses_kb(
 
 
 def get_course_manage_kb(course_id: int):
-    """Генерирует меню управления для АКТИВНОГО курса."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text="✏️ Редактировать",
@@ -97,7 +96,6 @@ def get_course_manage_kb(course_id: int):
 
 
 def get_confirm_delete_kb(course_id: int):
-    """Генерирует клавиатуру для подтверждения архивации курса."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text="✅ Да, архивировать",
@@ -119,7 +117,6 @@ class AdminArchivedCoursePaginationCallback(CallbackData, prefix="admin_archive_
 def get_admin_archived_courses_kb(
     courses: list, offset: int, total_courses: int, page_size: int
 ):
-    """Генерирует клавиатуру для списка архивных курсов."""
     builder = InlineKeyboardBuilder()
     for course in courses:
         builder.button(
@@ -157,7 +154,6 @@ def get_admin_archived_courses_kb(
 
 
 def get_archived_course_manage_kb(course_id: int):
-    """Генерирует меню управления для АРХИВНОГО курса."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text="♻️ Восстановить",
