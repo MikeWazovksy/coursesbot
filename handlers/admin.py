@@ -107,11 +107,11 @@ async def list_courses(message: Message, pool: asyncpg.Pool):
     )
 
     if not courses:
-        await message.answer("В базе данных пока нет курсов.")
+        await message.answer("Активных курсов в базе данных пока нет.")
         return
 
     await message.answer(
-        "Выберите курс для управления:",
+        "Управление активными курсами:",
         reply_markup=get_admin_courses_kb(
             courses, offset=0, total_courses=total_courses, page_size=COURSES_PER_PAGE
         ),
@@ -136,7 +136,7 @@ async def paginate_courses_list(
     )
 
     await callback.message.edit_text(
-        "Выберите курс для управления:",
+        "Управление активными курсами:",
         reply_markup=get_admin_courses_kb(
             courses,
             offset=new_offset,
@@ -153,10 +153,13 @@ def _format_course_details_text(course: Dict, course_id: int, title_prefix: str)
     full_desc = html.escape(course.get("full_description", ""))
     price = course.get("price", 0)
     link = hlink("Ссылка", course.get("materials_link", ""))
+    is_active = course.get("is_active", False)
+    status = "✅ Активен" if is_active else "🗄️ В архиве"
 
     return (
         f"📖 {hbold(title_prefix)}\n\n"
         f"{hbold('ID:')} {hcode(course_id)}\n"
+        f"{hbold('Статус:')} {status}\n"
         f"{hbold('Название:')} {title}\n"
         f"{hbold('Краткое описание:')} {short_desc}\n"
         f"{hbold('Полное описание:')} {full_desc}\n"
@@ -177,9 +180,17 @@ async def view_course(
         return
 
     text = _format_course_details_text(course, course_id, "Просмотр курса")
+
+    is_active = course.get("is_active", False)
+    reply_markup = (
+        get_course_manage_kb(course_id)
+        if is_active
+        else get_archived_course_manage_kb(course_id)
+    )
+
     await callback.message.edit_text(
         text,
-        reply_markup=get_course_manage_kb(course_id),
+        reply_markup=reply_markup,
         disable_web_page_preview=True,
     )
 
@@ -189,7 +200,7 @@ async def confirm_delete_course(
     callback: CallbackQuery, callback_data: AdminCourseCallback
 ):
     await callback.message.edit_text(
-        "Вы уверены, что хотите удалить этот курс?",
+        "Вы уверены, что хотите архивировать этот курс?",
         reply_markup=get_confirm_delete_kb(callback_data.course_id),
     )
     await callback.answer()
@@ -201,7 +212,7 @@ async def delete_course_confirmed(
 ):
     course_id = callback_data.course_id
     await courses_db.delete_course(pool, course_id)
-    await callback.message.edit_text("Курс был успешно удален.")
+    await callback.message.edit_text("✅ Курс был успешно архивирован.")
     await callback.answer()
 
 
@@ -406,3 +417,65 @@ async def process_new_welcome_message(
         "✅ Приветственное сообщение успешно обновлено!",
         reply_markup=admin_main_kb,
     )
+
+
+@admin_router.message(F.text == "🗄️ Архив курсов", IsAdmin())
+async def list_archived_courses(message: Message, pool: asyncpg.Pool):
+    total_courses = await courses_db.get_total_archived_courses_count(pool)
+    courses = await courses_db.get_paginated_archived_courses(
+        pool, limit=COURSES_PER_PAGE, offset=0
+    )
+
+    if not courses:
+        await message.answer("В архиве пока нет курсов.")
+        return
+
+    await message.answer(
+        "Управление архивными курсами:",
+        reply_markup=get_admin_archived_courses_kb(  # Нужна новая функция для клавиатуры
+            courses, offset=0, total_courses=total_courses, page_size=COURSES_PER_PAGE
+        ),
+    )
+
+
+@admin_router.callback_query(
+    AdminArchivedCoursePaginationCallback.filter()
+)  # Нужен новый CallbackFactory
+async def paginate_archived_courses_list(
+    callback: CallbackQuery,
+    callback_data: AdminArchivedCoursePaginationCallback,
+    pool: asyncpg.Pool,
+):
+    current_offset = callback_data.offset
+    if callback_data.action == "next":
+        new_offset = current_offset + COURSES_PER_PAGE
+    else:
+        new_offset = current_offset - COURSES_PER_PAGE
+
+    total_courses = await courses_db.get_total_archived_courses_count(pool)
+    courses = await courses_db.get_paginated_archived_courses(
+        pool, limit=COURSES_PER_PAGE, offset=new_offset
+    )
+
+    await callback.message.edit_text(
+        "Управление архивными курсами:",
+        reply_markup=get_admin_archived_courses_kb(
+            courses,
+            offset=new_offset,
+            total_courses=total_courses,
+            page_size=COURSES_PER_PAGE,
+        ),
+    )
+    await callback.answer()
+
+
+@admin_router.callback_query(AdminCourseCallback.filter(F.action == "restore"))
+async def restore_course(
+    callback: CallbackQuery, callback_data: AdminCourseCallback, pool: asyncpg.Pool
+):
+    course_id = callback_data.course_id
+    await courses_db.update_course_field(pool, course_id, "is_active", True)
+    await callback.message.edit_text(
+        f"✅ Курс с ID {course_id} успешно восстановлен из архива!"
+    )
+    await callback.answer()

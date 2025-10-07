@@ -12,6 +12,7 @@ admin_main_kb = ReplyKeyboardMarkup(
         [
             KeyboardButton(text="➕ Добавить курс"),
             KeyboardButton(text="📋 Список курсов"),
+            KeyboardButton(text="🗄️ Архив курсов"),
         ],
         [KeyboardButton(text="👥 Список юзеров"), KeyboardButton(text="📊 Статистика")],
         [KeyboardButton(text="✏️ Изменить приветствие")],
@@ -24,6 +25,7 @@ cancel_kb = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="❌ Отмена")]], resize_keyboard=True
 )
 
+
 class AdminCourseCallback(CallbackData, prefix="admin_course"):
     action: str
     course_id: int
@@ -34,12 +36,14 @@ class AdminCoursePaginationCallback(CallbackData, prefix="admin_course_page"):
     offset: int
 
 
-def get_admin_courses_kb(courses: list, offset: int, total_courses: int, page_size: int):
+def get_admin_courses_kb(
+    courses: list, offset: int, total_courses: int, page_size: int
+):
     builder = InlineKeyboardBuilder()
     for course in courses:
         builder.button(
-            text=f"ID: {course[0]} | {course[1]}",
-            callback_data=AdminCourseCallback(action="view", course_id=course[0]),
+            text=f"ID: {course['id']} | {course['title']}",
+            callback_data=AdminCourseCallback(action="view", course_id=course["id"]),
         )
 
     pagination_buttons = []
@@ -47,14 +51,18 @@ def get_admin_courses_kb(courses: list, offset: int, total_courses: int, page_si
         pagination_buttons.append(
             InlineKeyboardButton(
                 text="⬅️ Назад",
-                callback_data=AdminCoursePaginationCallback(action="prev", offset=offset).pack(),
+                callback_data=AdminCoursePaginationCallback(
+                    action="prev", offset=offset
+                ).pack(),
             )
         )
     if offset + page_size < total_courses:
         pagination_buttons.append(
             InlineKeyboardButton(
                 text="Вперёд ➡️",
-                callback_data=AdminCoursePaginationCallback(action="next", offset=offset).pack(),
+                callback_data=AdminCoursePaginationCallback(
+                    action="next", offset=offset
+                ).pack(),
             )
         )
 
@@ -70,14 +78,14 @@ def get_admin_courses_kb(courses: list, offset: int, total_courses: int, page_si
 
 
 def get_course_manage_kb(course_id: int):
-    """Генерирует меню управления для выбранного курса."""
+    """Генерирует меню управления для АКТИВНОГО курса."""
     builder = InlineKeyboardBuilder()
     builder.button(
         text="✏️ Редактировать",
         callback_data=AdminCourseCallback(action="edit", course_id=course_id),
     )
     builder.button(
-        text="🗑️ Удалить",
+        text="🗄️ Архивировать",
         callback_data=AdminCourseCallback(action="delete", course_id=course_id),
     )
     builder.button(
@@ -87,11 +95,12 @@ def get_course_manage_kb(course_id: int):
     builder.adjust(2, 1)
     return builder.as_markup()
 
+
 def get_confirm_delete_kb(course_id: int):
-    """Генерирует клавиатуру для подтверждения удаления курса."""
+    """Генерирует клавиатуру для подтверждения архивации курса."""
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="✅ Да, удалить",
+        text="✅ Да, архивировать",
         callback_data=AdminCourseCallback(action="confirm_delete", course_id=course_id),
     )
     builder.button(
@@ -99,6 +108,66 @@ def get_confirm_delete_kb(course_id: int):
         callback_data=AdminCourseCallback(action="view", course_id=course_id),
     )
     builder.adjust(2)
+    return builder.as_markup()
+
+
+class AdminArchivedCoursePaginationCallback(CallbackData, prefix="admin_archive_page"):
+    action: str
+    offset: int
+
+
+def get_admin_archived_courses_kb(
+    courses: list, offset: int, total_courses: int, page_size: int
+):
+    """Генерирует клавиатуру для списка архивных курсов."""
+    builder = InlineKeyboardBuilder()
+    for course in courses:
+        builder.button(
+            text=f"ID: {course['id']} | {course['title']}",
+            callback_data=AdminCourseCallback(action="view", course_id=course["id"]),
+        )
+
+    pagination_buttons = []
+    if offset > 0:
+        pagination_buttons.append(
+            InlineKeyboardButton(
+                text="⬅️ Назад",
+                callback_data=AdminArchivedCoursePaginationCallback(
+                    action="prev", offset=offset
+                ).pack(),
+            )
+        )
+    if offset + page_size < total_courses:
+        pagination_buttons.append(
+            InlineKeyboardButton(
+                text="Вперёд ➡️",
+                callback_data=AdminArchivedCoursePaginationCallback(
+                    action="next", offset=offset
+                ).pack(),
+            )
+        )
+
+    builder.row(*pagination_buttons)
+    builder.button(
+        text="⬅️ Назад в меню",
+        callback_data=AdminCourseCallback(action="back_to_main_menu", course_id=0),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_archived_course_manage_kb(course_id: int):
+    """Генерирует меню управления для АРХИВНОГО курса."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="♻️ Восстановить",
+        callback_data=AdminCourseCallback(action="restore", course_id=course_id),
+    )
+    builder.button(
+        text="⬅️ Назад в архив",
+        callback_data=AdminCourseCallback(action="back_to_archive_list", course_id=0),
+    )
+    builder.adjust(1)
     return builder.as_markup()
 
 
@@ -127,6 +196,7 @@ def get_edit_field_kb(course_id: int):
     )
     builder.adjust(2, 2, 1)
     return builder.as_markup()
+
 
 class UserPaginationCallback(CallbackData, prefix="users_page"):
     action: str
