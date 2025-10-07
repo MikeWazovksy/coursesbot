@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS courses (
     short_description TEXT,
     full_description TEXT,
     price NUMERIC(10, 2) NOT NULL,
-    materials_link TEXT NOT NULL
+    materials_link TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
 );
 
 -- Таблица купленных курсов
