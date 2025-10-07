@@ -479,3 +479,25 @@ async def restore_course(
         f"✅ Курс с ID {course_id} успешно восстановлен из архива!"
     )
     await callback.answer()
+
+
+@admin_router.callback_query(
+    AdminCourseCallback.filter(F.action == "back_to_archive_list")
+)
+async def back_to_archive_list_admin(callback: CallbackQuery, pool: asyncpg.Pool):
+    await callback.answer()
+    total_courses = await courses_db.get_total_archived_courses_count(pool)
+    courses = await courses_db.get_paginated_archived_courses(
+        pool, limit=COURSES_PER_PAGE, offset=0
+    )
+
+    if not courses:
+        await callback.message.edit_text("В архиве пока нет курсов.")
+        return
+
+    await callback.message.edit_text(
+        "Управление архивными курсами:",
+        reply_markup=get_admin_archived_courses_kb(
+            courses, offset=0, total_courses=total_courses, page_size=COURSES_PER_PAGE
+        ),
+    )
