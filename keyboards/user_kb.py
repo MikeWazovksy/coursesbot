@@ -26,9 +26,13 @@ class CourseCallbackFactory(CallbackData, prefix="course"):
 
 def get_courses_list_kb(courses: list):
     builder = InlineKeyboardBuilder()
-    for course_id, title, _, _, price, _ in courses:
+    for course in courses:
+        course_id = course["id"]
+        title = course["title"]
+        price = course["price"]
+
         builder.button(
-            text=f"{title} - {price} руб.",
+            text=f"🎓 {title} - {price} руб.",
             callback_data=CourseCallbackFactory(action="view", course_id=course_id),
         )
     builder.adjust(1)
